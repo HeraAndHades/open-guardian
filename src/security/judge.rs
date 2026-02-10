@@ -154,7 +154,11 @@ impl Judge {
                     };
 
                     tracing::info!("AI Judge verdict for prompt: {} (Raw: '{}', Verdict: {}, RAG context: {} threats)", 
-                        if prompt.len() > 30 { format!("{}...", &prompt[..30]) } else { prompt.to_string() },
+                        if prompt.chars().count() > 30 {
+                            format!("{}...", prompt.chars().take(30).collect::<String>())
+                        } else {
+                            prompt.to_string()
+                        },
                         response_text, 
                         if verdict { "CLEAN" } else { "BLOCKED" },
                         similar_threats.len()

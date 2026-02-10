@@ -6,4 +6,4 @@ pub mod threat_engine;
 pub use dlp::{redact_pii, check_for_violations, DlpAction};
 pub use injection_scanner::analyze_injection;
 pub use judge::Judge;
-pub use threat_engine::{ThreatEngine, ThreatMatch};
+pub use threat_engine::ThreatEngine;
