@@ -1,74 +1,345 @@
-# Open-GuardIAn 🛡️
+<p align="center">
+  <h1 align="center">🛡️ Open-GuardIAn</h1>
+  <p align="center"><strong>Stopping AI agents (and chatbots) from doing stupid things.</strong></p>
+  <p align="center">
+    <a href="#-quickstart"><img src="https://img.shields.io/badge/Get_Started-blue?style=for-the-badge" alt="Get Started"></a>
+    <a href="#-architecture"><img src="https://img.shields.io/badge/Architecture-purple?style=for-the-badge" alt="Architecture"></a>
+    <a href="#%EF%B8%8F-configuration"><img src="https://img.shields.io/badge/Configuration-green?style=for-the-badge" alt="Configuration"></a>
+  </p>
+</p>
 
-**The AI Firewall & Security Gateway** — *Keeping AI agents from doing stupid things.*
+---
 
-Open-GuardIAn is a high-performance, security-first middleware designed for the age of autonomous AI agents. It sits between your applications and LLM providers (OpenAI, Groq, Ollama, etc.), providing a robust governance layer that prevents data leaks, blocks prompt injections, and enforces semantic safety policies in real-time.
+Open-GuardIAn is a **high-performance security middleware / reverse proxy** built in Rust that sits between your applications and any LLM provider (OpenAI, Groq, Ollama, Anthropic, etc.). It enforces real-time governance policies to prevent data leaks, block prompt injections, and stop agents from executing dangerous actions — all before the request ever reaches the model.
 
-## 🚀 Why Open-GuardIAn?
+```
+ Your App ──▶ Open-GuardIAn ──▶ LLM Provider
+                   │
+            ┌──────┴───────┐
+            │  DLP Scanner │  ← Redacts PII & secrets
+            │  Injection   │  ← Blocks jailbreaks
+            │  ThreatEngine│  ← OWASP/MITRE signatures
+            │  AI Sheriff  │  ← Contextual AI judge (optional)
+            └──────────────┘
+```
 
-As AI agents gain more autonomy and access to sensitive data, the risk of "stupid things" happening increases exponentially. Open-GuardIAn provides the guardrails needed to deploy AI with confidence.
+## 🎯 Who Is This For?
 
-- **Data Privacy:** Automatically redacts PII and Secrets before they ever reach an external API.
-- **Cost & Performance Control:** Smart routing and caching ensure you use the right model for the right task at the lowest latency.
-- **Semantic Governance:** "The Sheriff" engine uses local LLMs to judge request safety, going beyond simple keyword filters.
-- **Agent Safety:** Prevents agents from being manipulated into performing unauthorized actions or leaking system prompts.
+| Audience | Problem We Solve |
+|----------|-----------------|
+| **Agent builders** (AutoGPT, CrewAI, LangChain) | Prevent agents from executing `rm -rf /`, `curl | bash`, or destroying infrastructure |
+| **RAG chatbot developers** | Stop end-users from jailbreaking your bot, leaking system prompts, or exfiltrating PII |
+| **Enterprise teams** | Enforce DLP policies — no API keys, SSNs, or credit cards ever leave your network |
+| **AI platform operators** | Drop-in reverse proxy with zero code changes to existing OpenAI-compatible APIs |
 
 ## ✨ Key Features
 
-### ⚖️ The Sheriff (AI Governance Engine)
-A semantic evaluation layer that uses a local judge (e.g., Llama 3) to analyze intent. It features:
-- **High-Performance Caching:** Powered by `moka`, repeat requests are resolved in <1ms.
-- **Concurrency Control:** Resource-aware semaphores prevent CPU exhaustion.
-- **Fail-Open Design:** Security that doesn't break production reliability.
+### ⚡ Dual-Engine Architecture: Defense-in-Depth
+
+Open-GuardIAn uses a **two-layer security model** — a fast heuristic layer handles 90% of threats deterministically, backed by an optional AI engine for the nuanced 10%.
+
+#### Layer 1: Heuristic Engine (CPU — Sub-millisecond — Always On)
+
+- **🔒 DLP (Data Loss Prevention)** — Regex-based detection & redaction of:
+  - **PII**: Emails, SSNs, Credit Cards, Phone Numbers, IP Addresses
+  - **Secrets**: AWS Keys (`AKIA...`), GitHub Tokens (`ghp_...`), OpenAI Keys (`sk-...`), Groq Keys (`gsk_...`), Bearer Tokens, Generic API Keys
+  - Configurable action: **Block** (stop request) or **Redact** (replace with `[REDACTED_*]` tags)
+
+- **🛡️ Injection Scanner** — Normalization-aware scoring engine that catches obfuscated attacks:
+  - Defeats **leetspeak** (`J4ilbr3ak` → `jailbreak`)
+  - 5 threat categories: Jailbreak, System Prompt Extraction, Roleplay, RCE, Data Exfiltration
+  - ~40 weighted patterns with configurable score threshold
+
+- **📋 Threat Engine** — Signature database powered by `threats.json`:
+  - 30 pre-loaded OWASP/MITRE signatures (RCE, SQL Injection, XSS, Jailbreak, Exfiltration)
+  - **Emergency Kit**: 10 critical patterns hardcoded in Rust — the system is **never** unprotected, even if `threats.json` is deleted
+  - **DevOps Whitelisting**: Explicitly allow commands like `git pull`, `kubectl apply`
+  - Users can add/remove signatures without recompiling
+
+#### Layer 2: Cognitive Engine (The Sheriff — Optional)
+
+- **🤠 AI Judge** — Uses a local LLM (via Ollama) for contextual intent analysis when heuristics are uncertain
+- **RAG-Powered**: The Judge doesn't guess blindly — it receives similar threat patterns from the Threat Engine as precedent in its system prompt
+- **Performance-Optimized**:
+  - `moka` semantic cache — repeat prompts resolved in <1ms
+  - `tokio::Semaphore` concurrency control — protects host resources
+  - Configurable **fail-open** or **fail-closed** when the AI is unavailable
 
 ### 🛣️ Smart Multi-Provider Router
-Dynamic routing based on the `model` field in your JSON requests.
-- Map specific models to different upstreams (e.g., GPT-4 to OpenAI, Llama-3 to Groq).
-- Zero-config fallback to default providers.
 
-### 🔒 Advanced DLP (Data Loss Prevention)
-Ultra-fast regex engine using `OnceLock` for single-pass detection of:
-- **Secrets:** AWS Keys, GitHub Tokens, and Generic API Keys.
-- **PII:** Emails, Credit Cards, IPv4 Addresses, and Phone Numbers.
+- Route requests to different LLM providers based on the `model` field
+- Automatic **credential injection** from environment variables
+- Model alias rewriting (e.g., `"llama-4"` → `"meta-llama/llama-4-maverick-17b-128e-instruct"`)
+- Zero-config fallback to default upstream
 
-### 🛡️ Heuristic Injection Guard
-Normalization-aware guard that catches obfuscated (leetspeak) injection attacks (e.g., `J4ilbr3ak`) using a risk-scoring system.
+### � Policy Manager (The Governor)
 
-## 🛠️ Getting Started
+Four enforcement modes for every security check:
 
-### 1. Configuration (`guardian.toml`)
-Create a `guardian.toml` in your project root:
+| Policy | Behavior |
+|--------|----------|
+| `block` | Return 403 Forbidden — request never reaches the LLM |
+| `audit` | Log `WARN` + inject `X-Guardian-Risk: High` header + forward |
+| `redact` | Sanitize sensitive data and forward |
+| `allow` | No enforcement (not recommended for production) |
+
+### 📝 Forensic Audit Logging
+
+- All security events logged in **JSONL** format with timestamps
+- Events: `injection_blocked`, `dlp_blocked`, `data_redacted`, `threat_signature_match`, `semantic_blocked`
+- Easily ingestible by SIEM tools (Splunk, ELK, Datadog)
+
+---
+
+## 🚀 Quickstart
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) (1.70+)
+- (Optional) [Ollama](https://ollama.ai/) for the AI Sheriff
+
+### 1. Clone & Build
+
+```bash
+git clone https://github.com/your-org/open-guardian.git
+cd open-guardian
+cargo build --release
+```
+
+### 2. Configure
+
+Create a `.env` file with your API keys:
+
+```env
+GROQ_API_KEY=gsk_your_key_here
+OPENAI_API_KEY=sk-your_key_here
+```
+
+Edit `guardian.toml` to your needs (see [Configuration](#%EF%B8%8F-configuration) below), or run with the secure defaults.
+
+### 3. Run the Shield
+
+```bash
+# Standard mode
+./target/release/open-guardian start
+
+# With verbose debug output
+./target/release/open-guardian start --verbose
+
+# Local-only mode (routes all traffic to Ollama)
+./target/release/open-guardian start --local
+```
+
+### 4. Point Your App
+
+Replace your LLM base URL with Open-GuardIAn:
+
+```python
+# Before
+client = OpenAI(base_url="https://api.groq.com/openai/v1")
+
+# After — all requests are now protected
+client = OpenAI(base_url="http://localhost:8080/v1")
+```
+
+That's it. **Zero code changes** — Open-GuardIAn is API-compatible with OpenAI, Groq, Ollama, and any provider using the `/v1/chat/completions` standard.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OPEN-GUARDIAN PROXY                         │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │              LAYER 1: HEURISTIC ENGINE (CPU)              │  │
+│  │  ┌─────────┐  ┌──────────────┐  ┌──────────────────────┐ │  │
+│  │  │   DLP   │→ │  Injection   │→ │   Threat Engine      │ │  │
+│  │  │ Scanner │  │   Scanner    │  │ (OWASP/MITRE + RAG)  │ │  │
+│  │  └─────────┘  └──────────────┘  └──────────────────────┘ │  │
+│  └───────────────────────┬───────────────────────────────────┘  │
+│                          ▼                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │        LAYER 2: COGNITIVE ENGINE (Optional GPU)           │  │
+│  │  ┌─────────────┐  ┌─────────┐  ┌───────────────────────┐ │  │
+│  │  │ RAG Context │→ │  Cache  │→ │  AI Judge (Ollama)    │ │  │
+│  │  │  Retrieval  │  │ (moka)  │  │  + Semaphore Control  │ │  │
+│  │  └─────────────┘  └─────────┘  └───────────────────────┘ │  │
+│  └───────────────────────┬───────────────────────────────────┘  │
+│                          ▼                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │            LAYER 3: POLICY ENFORCEMENT                    │  │
+│  │         Block (403) │ Audit (Log+Forward) │ Allow         │  │
+│  └───────────────────────┬───────────────────────────────────┘  │
+│                          ▼                                      │
+│               Smart Router → Upstream LLM                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Pipeline Flow
+
+1. **Incoming Request** → Rate limiter check
+2. **Layer 1** (always runs, sub-ms):
+   - **DLP**: Redact PII/secrets or block if policy = `block`
+   - **Injection Scanner**: Score adversarial patterns → block if score ≥ threshold
+   - **Threat Engine**: Match against OWASP/MITRE signature database
+3. **Layer 2** (runs only if enabled and Layer 1 passes):
+   - Retrieve similar threat patterns (RAG) → check moka cache → acquire semaphore → call AI Judge
+4. **Layer 3**: Enforce verdict — `403 Block` / `Audit + Forward` / `Allow + Forward`
+
+---
+
+## ⚙️ Configuration
+
+### `guardian.toml`
 
 ```toml
 [server]
 port = 8080
-upstream = "https://api.openai.com/v1"
+default_upstream = "https://api.groq.com/openai"
+requests_per_minute = 60
 
-[server.routes]
-"llama-3.1-8b-instant" = "https://api.groq.com/openai"
+[security]
+audit_log_path = "guardian_audit.jsonl"
+block_threshold = 50       # Injection score threshold (0-100)
+
+[security.policies]
+default_action = "block"   # block | audit | redact | allow
+dlp_action = "redact"      # block | redact
+threats_path = "threats.json"
+allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
 
 [judge]
-enabled = true
-model = "llama3.2:1b"
+ai_judge_enabled = true
+ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
+ai_judge_model = "gemma3:1b"
+judge_cache_ttl_seconds = 60
+judge_max_concurrency = 4
+fail_open = true            # true = Prioritize reliability, false = Prioritize security
+
+[routes]
+"gpt-oss" = { url = "https://api.groq.com/openai", model = "openai/gpt-oss-120b", key_env = "GROQ_API_KEY" }
+"llama-4" = { url = "https://api.groq.com/openai", model = "meta-llama/llama-4-maverick-17b-128e-instruct", key_env = "GROQ_API_KEY" }
+"gpt-4o" = { url = "https://api.openai.com/v1", key_env = "OPENAI_API_KEY" }
+"gemma3:1b" = { url = "http://127.0.0.1:11434/v1" }
 ```
 
-### 2. Run the Shield
-```bash
-open-guardian start
-```
+### `threats.json`
 
-### 3. Run the Inspector (Audit)
-Scan your environment for exposed secrets and insecure configurations:
-```bash
-open-guardian audit
-```
+Add or remove signatures without recompiling:
 
-## 🏗️ Project Structure
-- `src/main.rs`: CLI Entry point.
-- `src/server.rs`: Axum server & Interception logic.
-- `src/proxy.rs`: Request forwarding.
-- `src/security/`: DLP, Injection Guard, and The Judge logic.
-- `src/audit.rs`: Static analysis for security.
+```json
+{
+  "signatures": [
+    {
+      "id": "RCE-001",
+      "pattern": "rm -rf",
+      "category": "RCE",
+      "severity": 95,
+      "is_regex": false
+    },
+    {
+      "id": "JB-007",
+      "pattern": "disregard.*(?:rules|guidelines|instructions)",
+      "category": "Jailbreak",
+      "severity": 85,
+      "is_regex": true
+    }
+  ]
+}
+```
 
 ---
-*Built with ❤️ in Rust for a safer AI future.*
+
+## 🔧 CLI Reference
+
+```bash
+# Start the proxy
+open-guardian start [--port 8080] [--upstream URL] [--local] [--verbose]
+
+# Security audit — scan for exposed secrets and misconfigurations
+open-guardian audit [path]
+
+# Service management (Windows/Linux/macOS)
+open-guardian service install    # Install as system service
+open-guardian service uninstall  # Remove system service
+open-guardian service start      # Start the service
+open-guardian service stop       # Stop the service
+```
+
+---
+
+## 📁 Project Structure
+
+```
+open-guardian/
+├── src/
+│   ├── main.rs                    # CLI entry point & service management
+│   ├── server.rs                  # Axum server & 3-layer pipeline orchestrator
+│   ├── proxy.rs                   # Reqwest-based request forwarding
+│   ├── config.rs                  # TOML config loader & policy definitions
+│   ├── audit.rs                   # Static security analysis
+│   ├── banner.rs                  # Terminal UI (colored output)
+│   ├── logger.rs                  # Tracing/logging initialization
+│   └── security/
+│       ├── mod.rs                 # Module exports
+│       ├── dlp.rs                 # Data Loss Prevention (PII + Secrets)
+│       ├── injection_scanner.rs   # Adversarial pattern scoring engine
+│       ├── threat_engine.rs       # Signature DB + Emergency Kit + RAG
+│       └── judge.rs               # AI Sheriff (moka cache + semaphore + RAG)
+├── guardian.toml                  # Runtime configuration
+├── threats.json                   # Threat signature database
+├── Cargo.toml                     # Rust dependencies
+└── .env                           # API keys (gitignored)
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all unit tests
+cargo test
+
+# Current test coverage:
+#   ✔ DLP: email, CC, SSN, AWS key, OpenAI key redaction + block mode
+#   ✔ Injection Scanner: jailbreak, extraction, leetspeak, RCE, safe input
+#   ✔ Threat Engine: RCE detection, hardcoded fallback, whitelisting
+```
+
+---
+
+## 🛡️ Security Philosophy
+
+> **"Defense-in-Depth. Secure by Default. Configurable by Choice."**
+
+1. **Never naked** — Even if `threats.json` is deleted, 10 critical signatures are hardcoded in the binary.
+2. **Heuristics first** — 90% of threats are caught deterministically at sub-millisecond latency, with zero external dependencies.
+3. **AI as backup** — The Sheriff only runs when heuristics pass AND you enable it. It uses RAG precedent, not blind guessing.
+4. **Fail gracefully** — `fail_open = true` means if Ollama is down, requests pass through (reliability over security). Set to `false` for high-security environments.
+5. **Audit everything** — Every block, redaction, and threat match is logged with full forensic detail.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here are some ways to help:
+
+- **Add threat signatures** — Submit PRs to `threats.json` with new OWASP/MITRE patterns
+- **Improve regex coverage** — Better PII detection for non-US formats (IBAN, passport numbers, etc.)
+- **New scanner modules** — Prompt leak detection, code injection scoring, etc.
+- **Benchmarks** — Measure and optimize latency under load
+
+---
+
+## 📄 License
+
+This project is open source. See [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ in Rust for a safer AI future.</strong><br>
+  <em>"Because the best AI firewall is the one that's always on."</em>
+</p>

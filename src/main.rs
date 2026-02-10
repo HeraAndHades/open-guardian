@@ -293,6 +293,9 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
             let audit_log_path = file_config.security.as_ref().and_then(|s| s.audit_log_path.clone());
             let block_threshold = file_config.security.as_ref().and_then(|s| s.block_threshold);
             let requests_per_minute = file_config.server.as_ref().and_then(|s| s.requests_per_minute);
+            let policies = file_config.security.as_ref()
+                .and_then(|s| s.policies.clone())
+                .unwrap_or_default();
 
             let config = ServerConfig {
                 port,
@@ -304,6 +307,7 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
                 requests_per_minute,
                 timeout_seconds,
                 verbose,
+                policies,
             };
 
             tracing::info!("Server starting on port {}", port);

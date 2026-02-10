@@ -1,5 +1,6 @@
 # ==========================================
 # OPEN-GUARDIAN CONFIGURATION
+# "Secure by Default, Configurable by Choice."
 # ==========================================
 
 [server]
@@ -17,6 +18,27 @@ requests_per_minute = 60
 audit_log_path = "guardian_audit.jsonl"
 # Sensitivity threshold for blocking heuristic attacks (0-100)
 block_threshold = 50
+
+# ==========================================
+# POLICY MANAGER (The Governor)
+# ==========================================
+[security.policies]
+# Default action when a threat is detected: block, audit, redact, allow
+# "block"  -> Return 403, stop the request
+# "audit"  -> Log WARN + inject X-Guardian-Risk header + forward
+# "redact" -> Sanitize and forward
+# "allow"  -> No enforcement (not recommended)
+default_action = "block"
+
+# DLP behavior: "block" (stop request) or "redact" (replace with [REDACTED])
+dlp_action = "redact"
+
+# Path to threat signature database (OWASP/MITRE)
+threats_path = "threats.json"
+
+# DevOps Mode (Whitelisting): Explicitly allow dangerous patterns
+# These bypass the Threat Engine signature check
+allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
 
 # ==========================================
 # THE SHERIFF (Local AI Governance Judge)

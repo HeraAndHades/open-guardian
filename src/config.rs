@@ -18,10 +18,68 @@ pub struct ServerConfig {
     pub requests_per_minute: Option<u32>,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct SecurityConfig {
     pub audit_log_path: Option<String>,
     pub block_threshold: Option<u32>,
+    pub policies: Option<PolicyConfig>,
+}
+
+/// Policy configuration: "Secure by Default, Configurable by Choice."
+#[derive(Deserialize, Debug, Clone)]
+pub struct PolicyConfig {
+    /// Default action when a threat is detected: block, audit, redact, allow
+    #[serde(default = "PolicyConfig::default_action")]
+    pub default_action: String,
+
+    /// DLP action: "block" or "redact"
+    #[serde(default = "PolicyConfig::default_dlp_action")]
+    pub dlp_action: String,
+
+    /// Path to the threat signature database
+    #[serde(default = "PolicyConfig::default_threats_path")]
+    pub threats_path: String,
+
+    /// Whitelisted patterns (DevOps Mode) — these bypass the Threat Engine
+    #[serde(default)]
+    pub allowed_patterns: Vec<String>,
+}
+
+impl PolicyConfig {
+    fn default_action() -> String { "block".to_string() }
+    fn default_dlp_action() -> String { "redact".to_string() }
+    fn default_threats_path() -> String { "threats.json".to_string() }
+}
+
+impl Default for PolicyConfig {
+    fn default() -> Self {
+        Self {
+            default_action: Self::default_action(),
+            dlp_action: Self::default_dlp_action(),
+            threats_path: Self::default_threats_path(),
+            allowed_patterns: Vec::new(),
+        }
+    }
+}
+
+/// Parsed policy action enum used at runtime.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PolicyAction {
+    Block,
+    Audit,
+    Redact,
+    Allow,
+}
+
+impl PolicyAction {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "audit" => PolicyAction::Audit,
+            "redact" => PolicyAction::Redact,
+            "allow" => PolicyAction::Allow,
+            _ => PolicyAction::Block, // secure default
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

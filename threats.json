@@ -1,0 +1,216 @@
+{
+    "version": "1.0.0",
+    "description": "Open-Guardian Threat Signature Database (OWASP/MITRE)",
+    "signatures": [
+        {
+            "id": "RCE-001",
+            "pattern": "rm -rf",
+            "category": "RCE",
+            "severity": 95,
+            "is_regex": false
+        },
+        {
+            "id": "RCE-002",
+            "pattern": "rm -r /",
+            "category": "RCE",
+            "severity": 95,
+            "is_regex": false
+        },
+        {
+            "id": "RCE-003",
+            "pattern": "curl.*\\|.*(?:bash|sh|zsh)",
+            "category": "RCE",
+            "severity": 90,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-004",
+            "pattern": "wget.*\\|.*(?:bash|sh|zsh)",
+            "category": "RCE",
+            "severity": 90,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-005",
+            "pattern": "eval\\s*\\(",
+            "category": "RCE",
+            "severity": 80,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-006",
+            "pattern": "exec\\s*\\(",
+            "category": "RCE",
+            "severity": 80,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-007",
+            "pattern": "os\\.system\\s*\\(",
+            "category": "RCE",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-008",
+            "pattern": "subprocess\\.(?:call|Popen|run)\\s*\\(",
+            "category": "RCE",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "RCE-009",
+            "pattern": "shutdown /s",
+            "category": "RCE",
+            "severity": 95,
+            "is_regex": false
+        },
+        {
+            "id": "RCE-010",
+            "pattern": ":(){ :|:& };:",
+            "category": "RCE",
+            "severity": 95,
+            "is_regex": false
+        },
+        {
+            "id": "RCE-011",
+            "pattern": "mkfs\\.",
+            "category": "RCE",
+            "severity": 95,
+            "is_regex": false
+        },
+        {
+            "id": "RCE-012",
+            "pattern": "dd if=/dev/zero",
+            "category": "RCE",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "INJ-001",
+            "pattern": "'\\s*OR\\s+1\\s*=\\s*1",
+            "category": "Injection",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "INJ-002",
+            "pattern": "<script[^>]*>",
+            "category": "Injection",
+            "severity": 80,
+            "is_regex": true
+        },
+        {
+            "id": "INJ-003",
+            "pattern": "UNION\\s+SELECT",
+            "category": "Injection",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "INJ-004",
+            "pattern": "DROP\\s+TABLE",
+            "category": "Injection",
+            "severity": 90,
+            "is_regex": true
+        },
+        {
+            "id": "INJ-005",
+            "pattern": ";\\s*DELETE\\s+FROM",
+            "category": "Injection",
+            "severity": 90,
+            "is_regex": true
+        },
+        {
+            "id": "JB-001",
+            "pattern": "ignore previous instructions",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-002",
+            "pattern": "ignore all instructions",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-003",
+            "pattern": "DAN mode",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": false
+        },
+        {
+            "id": "JB-004",
+            "pattern": "developer mode",
+            "category": "Jailbreak",
+            "severity": 70,
+            "is_regex": false
+        },
+        {
+            "id": "JB-005",
+            "pattern": "(?i)pliny",
+            "category": "Jailbreak",
+            "severity": 80,
+            "is_regex": true
+        },
+        {
+            "id": "JB-006",
+            "pattern": "you are now in.*mode",
+            "category": "Jailbreak",
+            "severity": 75,
+            "is_regex": true
+        },
+        {
+            "id": "JB-007",
+            "pattern": "disregard.*(?:rules|guidelines|instructions)",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "JB-008",
+            "pattern": "override.*(?:safety|restrictions|filters)",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "EXFIL-001",
+            "pattern": "show me the database",
+            "category": "DataExfiltration",
+            "severity": 70,
+            "is_regex": false
+        },
+        {
+            "id": "EXFIL-002",
+            "pattern": "dump.*credentials",
+            "category": "DataExfiltration",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "EXFIL-003",
+            "pattern": "(?:print|show|display|reveal).*(?:env|environment)\\s*(?:variables|vars)",
+            "category": "DataExfiltration",
+            "severity": 75,
+            "is_regex": true
+        },
+        {
+            "id": "EXFIL-004",
+            "pattern": "leak.*(?:system prompt|instructions|api key)",
+            "category": "DataExfiltration",
+            "severity": 90,
+            "is_regex": true
+        },
+        {
+            "id": "EXFIL-005",
+            "pattern": "reveal your (?:system prompt|instructions|prompt|rules)",
+            "category": "DataExfiltration",
+            "severity": 85,
+            "is_regex": true
+        }
+    ]
+}
