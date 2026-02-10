@@ -1,0 +1,58 @@
+# ==========================================
+# OPEN-GUARDIAN CONFIGURATION
+# ==========================================
+
+[server]
+port = 8080
+# Default upstream for requests that don't match a specific route
+default_upstream = "https://api.groq.com/openai"
+
+# RATE LIMITING (Cost & Resource Protection)
+# Maximum global requests per minute
+requests_per_minute = 60
+
+[security]
+# FORENSIC AUDITING
+# Path for security event logs (JSONL format)
+audit_log_path = "guardian_audit.jsonl"
+# Sensitivity threshold for blocking heuristic attacks (0-100)
+block_threshold = 50
+
+# ==========================================
+# THE SHERIFF (Local AI Governance Judge)
+# ==========================================
+[judge]
+ai_judge_enabled = true
+ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
+ai_judge_model = "gemma3:1b"
+
+# PERFORMANCE TUNING
+# Cache TTL: Avoid redundant inference for identical prompts (Seconds)
+judge_cache_ttl_seconds = 60
+
+# Concurrency: Max simultaneous evaluations to protect host resources
+judge_max_concurrency = 4
+
+# Resilience: Bypass security check if the local AI service is unavailable
+# true = Fail-Open (Prioritize reliability). false = Fail-Strict (Prioritize security).
+fail_open = true
+
+# ==========================================
+# SMART ROUTING & CREDENTIAL INJECTION
+# ==========================================
+
+[routes]
+# --- GROQ ---
+"gpt-oss" = { url = "https://api.groq.com/openai", model = "openai/gpt-oss-120b", key_env = "GROQ_API_KEY" }
+
+"llama-4" = { url = "https://api.groq.com/openai", model = "meta-llama/llama-4-maverick-17b-128e-instruct", key_env = "GROQ_API_KEY" }
+
+"llama-3-fast" = { url = "https://api.groq.com/openai", model = "llama-3.1-8b-instant", key_env = "GROQ_API_KEY" }
+
+"qwen-32b" = { url = "https://api.groq.com/openai", model = "qwen/qwen3-32b", key_env = "GROQ_API_KEY" }
+
+# --- OpenAI ---
+"gpt-4o" = { url = "https://api.openai.com/v1", key_env = "OPENAI_API_KEY" }
+
+# --- Local ---
+"gemma3:1b" = { url = "http://127.0.0.1:11434/v1" }

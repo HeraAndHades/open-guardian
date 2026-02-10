@@ -1,0 +1,37 @@
+# Rust
+/target
+Cargo.lock
+
+# Environment & Secrets
+.env
+*.env
+auth.toml
+
+# Logs & Data
+*.log
+guardian_audit.jsonl
+*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+# If you want to ignore specific python helper scripts, uncomment the line below:
+*.py
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Carpetas de prueba
+deploy_test/
