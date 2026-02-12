@@ -2,6 +2,12 @@
 name = "open-guardian"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+authors = ["Anthony Smith <tu-email-o-github>"]
+description = "The High-Performance Firewall for AI Agents."
+repository = "https://github.com/your-username/open-guardian"
+keywords = ["ai", "security", "firewall", "llm", "rust"]
+categories = ["network-programming", "science::robotics"]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }

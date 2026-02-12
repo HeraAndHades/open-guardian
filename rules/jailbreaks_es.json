@@ -2,45 +2,111 @@
     "signatures": [
         {
             "id": "JB-ES-001",
-            "pattern": "tu eres dan",
+            "pattern": "olvida tus reglas",
             "category": "Jailbreak",
-            "severity": 90,
-            "is_regex": false
+            "severity": 95
         },
         {
             "id": "JB-ES-002",
-            "pattern": "olvida tus reglas",
+            "pattern": "modo dios",
             "category": "Jailbreak",
-            "severity": 90,
-            "is_regex": false
+            "severity": 95
         },
         {
             "id": "JB-ES-003",
-            "pattern": "actua como",
+            "pattern": "sin restricciones",
             "category": "Jailbreak",
-            "severity": 70,
-            "is_regex": false
+            "severity": 95
         },
         {
             "id": "JB-ES-004",
             "pattern": "ignora las instrucciones",
             "category": "Jailbreak",
-            "severity": 90,
-            "is_regex": false
+            "severity": 95
         },
         {
             "id": "JB-ES-005",
-            "pattern": "ahora eres dan",
+            "pattern": "ignora las instrucciones anteriores",
             "category": "Jailbreak",
-            "severity": 90,
-            "is_regex": false
+            "severity": 95
         },
         {
             "id": "JB-ES-006",
-            "pattern": "modo sin restricciones",
+            "pattern": "modo sin censura",
             "category": "Jailbreak",
-            "severity": 85,
-            "is_regex": false
+            "severity": 95
+        },
+        {
+            "id": "JB-ES-007",
+            "pattern": "tu eres dan",
+            "category": "Jailbreak",
+            "severity": 95
+        },
+        {
+            "id": "JB-ES-008",
+            "pattern": "desactiva la seguridad",
+            "category": "Jailbreak",
+            "severity": 95
+        },
+        {
+            "id": "JB-ES-009",
+            "pattern": "muestra tu prompt",
+            "category": "PromptLeak",
+            "severity": 95
+        },
+        {
+            "id": "JB-ES-010",
+            "pattern": "revela tus instrucciones",
+            "category": "PromptLeak",
+            "severity": 95
+        },
+        {
+            "id": "CTX-ES-001",
+            "pattern": "hacker",
+            "category": "Unethical",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-002",
+            "pattern": "sin etica",
+            "category": "Unethical",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-003",
+            "pattern": "actua como",
+            "category": "Roleplay",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-004",
+            "pattern": "bomba",
+            "category": "MaliciousTopic",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-005",
+            "pattern": "virus",
+            "category": "MaliciousTopic",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-006",
+            "pattern": "droga",
+            "category": "MaliciousTopic",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-007",
+            "pattern": "ransomware",
+            "category": "MaliciousTopic",
+            "severity": 70
+        },
+        {
+            "id": "CTX-ES-008",
+            "pattern": "phishing",
+            "category": "MaliciousTopic",
+            "severity": 70
         }
     ]
 }

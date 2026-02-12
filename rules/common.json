@@ -1,200 +1,188 @@
 {
     "signatures": [
         {
-            "id": "RCE-001",
-            "pattern": "rm rf",
+            "id": "INFRA-001",
+            "pattern": "cat /etc/passwd",
             "category": "RCE",
-            "severity": 95,
-            "is_regex": false
+            "severity": 100
         },
         {
-            "id": "RCE-002",
-            "pattern": "rm r /",
+            "id": "INFRA-002",
+            "pattern": "cat /etc/shadow",
             "category": "RCE",
-            "severity": 95,
-            "is_regex": false
+            "severity": 100
         },
         {
-            "id": "RCE-003",
-            "pattern": "wget",
-            "category": "RCE",
-            "severity": 60,
-            "is_regex": false
+            "id": "INFRA-003",
+            "pattern": "drop table",
+            "category": "SQLi",
+            "severity": 100
         },
         {
-            "id": "RCE-004",
-            "pattern": "curl | bash",
-            "category": "RCE",
-            "severity": 90,
-            "is_regex": false
+            "id": "INFRA-004",
+            "pattern": "\\{\\{.*\\}\\}",
+            "category": "SSTI",
+            "severity": 100,
+            "is_regex": true
         },
         {
-            "id": "RCE-005",
-            "pattern": "curl | sh",
+            "id": "INFRA-005",
+            "pattern": "eval\\(base64",
             "category": "RCE",
-            "severity": 90,
-            "is_regex": false
+            "severity": 100,
+            "is_regex": true
         },
         {
-            "id": "RCE-006",
-            "pattern": "chmod +x",
-            "category": "RCE",
-            "severity": 75,
-            "is_regex": false
+            "id": "INFRA-006",
+            "pattern": "system.exit",
+            "category": "CodeExec",
+            "severity": 100
         },
         {
-            "id": "RCE-007",
-            "pattern": "chmod 777",
-            "category": "RCE",
-            "severity": 80,
-            "is_regex": false
+            "id": "INFRA-007",
+            "pattern": "sk-proj-",
+            "category": "DataLeak",
+            "severity": 100
         },
         {
-            "id": "RCE-008",
+            "id": "INFRA-008",
+            "pattern": "; cat /",
+            "category": "RCE",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-009",
+            "pattern": "| bash",
+            "category": "RCE",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-010",
+            "pattern": "../etc/passwd",
+            "category": "PathTraversal",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-011",
+            "pattern": "../etc/shadow",
+            "category": "PathTraversal",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-012",
+            "pattern": "base64 --decode",
+            "category": "Obfuscation",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-013",
+            "pattern": "nc -e",
+            "category": "RCE",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-014",
+            "pattern": "python -c",
+            "category": "CodeExec",
+            "severity": 80
+        },
+        {
+            "id": "INFRA-015",
+            "pattern": "powershell -enc",
+            "category": "CodeExec",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-016",
             "pattern": "shutdown /s",
             "category": "RCE",
-            "severity": 95,
-            "is_regex": false
+            "severity": 100
         },
         {
-            "id": "RCE-009",
+            "id": "INFRA-017",
             "pattern": ":() :|:& ;:",
-            "category": "RCE",
-            "severity": 95,
-            "is_regex": false
+            "category": "ForkBomb",
+            "severity": 100
         },
         {
-            "id": "RCE-010",
-            "pattern": "mkfs.",
-            "category": "RCE",
-            "severity": 95,
-            "is_regex": false
-        },
-        {
-            "id": "RCE-011",
-            "pattern": "dd if=/dev/zero",
-            "category": "RCE",
-            "severity": 95,
-            "is_regex": false
-        },
-        {
-            "id": "RCE-012",
-            "pattern": "> /dev/sda",
-            "category": "RCE",
-            "severity": 95,
-            "is_regex": false
-        },
-        {
-            "id": "RCE-013",
-            "pattern": "eval(",
-            "category": "RCE",
-            "severity": 70,
-            "is_regex": false
-        },
-        {
-            "id": "RCE-014",
-            "pattern": "exec(",
-            "category": "RCE",
-            "severity": 70,
-            "is_regex": false
-        },
-        {
-            "id": "RCE-015",
-            "pattern": "os.system(",
-            "category": "RCE",
+            "id": "INFRA-018",
+            "pattern": "select.*from.*where",
+            "category": "SQLi",
             "severity": 80,
-            "is_regex": false
+            "is_regex": true
         },
         {
-            "id": "RCE-016",
-            "pattern": "subprocess.call",
-            "category": "RCE",
-            "severity": 80,
-            "is_regex": false
-        },
-        {
-            "id": "INJ-001",
-            "pattern": "drop table",
-            "category": "Injection",
-            "severity": 90,
-            "is_regex": false
-        },
-        {
-            "id": "INJ-002",
+            "id": "INFRA-019",
             "pattern": "union select",
-            "category": "Injection",
-            "severity": 85,
-            "is_regex": false
+            "category": "SQLi",
+            "severity": 100
         },
         {
-            "id": "INJ-003",
-            "pattern": "<script>",
-            "category": "Injection",
+            "id": "INFRA-020",
+            "pattern": "insert into",
+            "category": "SQLi",
+            "severity": 100
+        },
+        {
+            "id": "INFRA-021",
+            "pattern": "xp_cmdshell",
+            "category": "SQLi",
+            "severity": 100
+        },
+        {
+            "id": "CTX-001",
+            "pattern": "rm -rf",
+            "category": "SHELL_CMD",
+            "severity": 80
+        },
+        {
+            "id": "CTX-002",
+            "pattern": "wget",
+            "category": "Network",
+            "severity": 80
+        },
+        {
+            "id": "CTX-003",
+            "pattern": "curl",
+            "category": "Network",
+            "severity": 80
+        },
+        {
+            "id": "CTX-004",
+            "pattern": "chmod",
+            "category": "SHELL_CMD",
+            "severity": 80
+        },
+        {
+            "id": "CTX-005",
+            "pattern": "exec\\(",
+            "category": "CodeExec",
             "severity": 80,
-            "is_regex": false
-        },
-        {
-            "id": "INJ-004",
-            "pattern": "system override",
-            "category": "Injection",
-            "severity": 90,
-            "is_regex": false
-        },
-        {
-            "id": "INJ-005",
-            "pattern": "developer mode",
-            "category": "Injection",
-            "severity": 80,
-            "is_regex": false
-        },
-        {
-            "id": "EXFIL-001",
-            "pattern": "dump credentials",
-            "category": "DataExfiltration",
-            "severity": 85,
-            "is_regex": false
-        },
-        {
-            "id": "EXFIL-002",
-            "pattern": "show all passwords",
-            "category": "DataExfiltration",
-            "severity": 90,
-            "is_regex": false
-        },
-        {
-            "id": "EXFIL-003",
-            "pattern": "export all records",
-            "category": "DataExfiltration",
-            "severity": 75,
-            "is_regex": false
-        },
-        {
-            "id": "EXFIL-004",
-            "pattern": "database connection string",
-            "category": "DataExfiltration",
-            "severity": 75,
-            "is_regex": false
-        },
-        {
-            "id": "EXFIL-005",
-            "pattern": "reveal your.*prompt",
-            "category": "DataExfiltration",
-            "severity": 85,
             "is_regex": true
         },
         {
-            "id": "EXFIL-006",
-            "pattern": "show.*system prompt",
-            "category": "DataExfiltration",
-            "severity": 85,
-            "is_regex": true
+            "id": "CTX-006",
+            "pattern": "whoami",
+            "category": "SHELL_CMD",
+            "severity": 80
         },
         {
-            "id": "EXFIL-007",
-            "pattern": "print your instructions",
-            "category": "DataExfiltration",
-            "severity": 85,
-            "is_regex": false
+            "id": "CTX-007",
+            "pattern": "sudo",
+            "category": "SHELL_CMD",
+            "severity": 80
+        },
+        {
+            "id": "CTX-008",
+            "pattern": "nmap",
+            "category": "Network",
+            "severity": 80
+        },
+        {
+            "id": "CTX-009",
+            "pattern": "netcat",
+            "category": "Network",
+            "severity": 80
         }
     ]
 }

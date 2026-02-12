@@ -221,6 +221,10 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Enable ANSI support on Windows
+    #[cfg(windows)]
+    let _ = colored::control::set_virtual_terminal(true);
+
     logger::init_logger();
     
     let env_path = get_env_path();
@@ -297,6 +301,10 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
                 .and_then(|s| s.policies.clone())
                 .unwrap_or_default();
 
+            let dlp_config = file_config.security.as_ref()
+                .and_then(|s| s.dlp.clone())
+                .unwrap_or_default();
+
             let config = ServerConfig {
                 port,
                 default_upstream: upstream_url,
@@ -308,6 +316,7 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
                 timeout_seconds,
                 verbose,
                 policies,
+                dlp_config,
             };
 
             tracing::info!("Server starting on port {}", port);

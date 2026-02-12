@@ -23,6 +23,42 @@ pub struct SecurityConfig {
     pub audit_log_path: Option<String>,
     pub block_threshold: Option<u32>,
     pub policies: Option<PolicyConfig>,
+    pub dlp: Option<DlpConfig>,
+}
+
+/// Per-category DLP toggle switches.
+/// All default to `true` — disable specific categories as needed.
+#[derive(Deserialize, Debug, Clone)]
+pub struct DlpConfig {
+    #[serde(default = "DlpConfig::default_true")]
+    pub email_redaction: bool,
+    #[serde(default = "DlpConfig::default_true")]
+    pub credit_card_redaction: bool,
+    #[serde(default = "DlpConfig::default_true")]
+    pub secret_redaction: bool,
+    #[serde(default = "DlpConfig::default_true")]
+    pub ssn_redaction: bool,
+    #[serde(default = "DlpConfig::default_true")]
+    pub ip_redaction: bool,
+    #[serde(default = "DlpConfig::default_true")]
+    pub phone_redaction: bool,
+}
+
+impl DlpConfig {
+    fn default_true() -> bool { true }
+}
+
+impl Default for DlpConfig {
+    fn default() -> Self {
+        Self {
+            email_redaction: true,
+            credit_card_redaction: true,
+            secret_redaction: true,
+            ssn_redaction: true,
+            ip_redaction: true,
+            phone_redaction: true,
+        }
+    }
 }
 
 /// A single dictionary source for threat signatures.

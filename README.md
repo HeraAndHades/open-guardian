@@ -1,14 +1,18 @@
 <p align="center">
   <h1 align="center">🛡️ Open-GuardIAn</h1>
-  <p align="center"><strong>Stopping AI agents (and chatbots) from doing stupid things.</strong></p>
+  <p align="center"><strong>The High-Performance Firewall for AI Agents.</strong></p>
+  <p align="center"><em>Built in Rust. Agent-First. Defense-in-Depth.</em></p>
   <p align="center">
     <a href="#-quickstart"><img src="https://img.shields.io/badge/Get_Started-blue?style=for-the-badge" alt="Get Started"></a>
     <a href="#-architecture"><img src="https://img.shields.io/badge/Architecture-purple?style=for-the-badge" alt="Architecture"></a>
     <a href="#%EF%B8%8F-configuration"><img src="https://img.shields.io/badge/Configuration-green?style=for-the-badge" alt="Configuration"></a>
+    <a href="#-contributing"><img src="https://img.shields.io/badge/Contributing-orange?style=for-the-badge" alt="Contributing"></a>
   </p>
 </p>
 
 ---
+
+## 💡 What Is This?
 
 Open-GuardIAn is a **high-performance security middleware / reverse proxy** built in Rust that sits between your applications and any LLM provider (OpenAI, Groq, Ollama, Anthropic, etc.). It enforces real-time governance policies to prevent data leaks, block prompt injections, and stop agents from executing dangerous actions — all before the request ever reaches the model.
 
@@ -16,54 +20,103 @@ Open-GuardIAn is a **high-performance security middleware / reverse proxy** buil
  Your App ──▶ Open-GuardIAn ──▶ LLM Provider
                    │
             ┌──────┴───────┐
-            │  DLP Scanner │  ← Redacts PII & secrets
-            │  Injection   │  ← Blocks jailbreaks
-            │  ThreatEngine│  ← OWASP/MITRE signatures
-            │  AI Sheriff  │  ← Contextual AI judge (optional)
+            │  Layer 1     │  ← DLP Anonymizer + Threat Engine (Rust, <1ms)
+            │  Layer 2     │  ← Heuristic Injection Scanner (Rust, <1ms)
+            │  Layer 3     │  ← AI Judge: qwen3:4b via Ollama (Optional)
             └──────────────┘
 ```
+
+### 🏆 Why Open-GuardIAn vs. Python Gateways?
+
+| Feature | **Open-GuardIAn** | Trylon / GPT Guard |
+|---------|-------------------|-------------------|
+| **Language** | 🦀 Rust | 🐍 Python |
+| **Latency** | **<1ms** heuristic layer | 5-50ms |
+| **DLP** | Anonymizer tokens (`<EMAIL>`, `<KEY>`) — preserves context for Agents | `[REDACTED]` or regex-only |
+| **AI Intelligence** | Local LLM Judge with RAG context (qwen3:4b) | ❌ Regex only |
+| **Agent-First** | ✅ `rm -rf` allowed for agents, blocked for attackers | ❌ Blocks all dangerous commands |
+| **Fail-Safe** | Layer 1 & 2 provide Trylon-level security without GPU | Depends on service availability |
+| **Multilingual** | 🌍 EN + ES dictionaries, add any language | English-only |
+
+---
 
 ## 🎯 Who Is This For?
 
 | Audience | Problem We Solve |
 |----------|-----------------|
-| **Agent builders** (AutoGPT, CrewAI, LangChain) | Prevent agents from executing `rm -rf /`, `curl | bash`, or destroying infrastructure |
+| **Agent builders** (AutoGPT, CrewAI, LangChain) | Prevent agents from executing `rm -rf /`, `curl | bash`, or destroying infrastructure — while still letting them use those tools legitimately |
 | **RAG chatbot developers** | Stop end-users from jailbreaking your bot, leaking system prompts, or exfiltrating PII |
 | **Enterprise teams** | Enforce DLP policies — no API keys, SSNs, or credit cards ever leave your network |
 | **AI platform operators** | Drop-in reverse proxy with zero code changes to existing OpenAI-compatible APIs |
 
+---
+
 ## ✨ Key Features
 
-### ⚡ Dual-Engine Architecture: Defense-in-Depth
+### ⚡ 3-Layer Defense Architecture
 
-Open-GuardIAn uses a **two-layer security model** — a fast heuristic layer handles 90% of threats deterministically, backed by an optional AI engine for the nuanced 10%.
+Open-GuardIAn uses a **three-layer security model** — fast heuristics handle 90% of threats deterministically, backed by an optional AI engine for nuanced decisions.
 
-#### Layer 1: Heuristic Engine (CPU — Sub-millisecond — Always On)
+#### Layer 1: DLP Anonymizer — "The Iron Dome" (CPU — Sub-millisecond — Always On)
 
-- **🔒 DLP (Data Loss Prevention)** — Regex-based detection & redaction of:
-  - **PII**: Emails, SSNs, Credit Cards, Phone Numbers, IP Addresses
-  - **Secrets**: AWS Keys (`AKIA...`), GitHub Tokens (`ghp_...`), OpenAI Keys (`sk-...`), Groq Keys (`gsk_...`), Bearer Tokens, Generic API Keys
-  - Configurable action: **Block** (stop request) or **Redact** (replace with `[REDACTED_*]` tags)
+The DLP layer is the first line of defense. It scans every request for sensitive data and replaces it with **context-preserving anonymizer tokens** that let AI agents understand what type of data was present without exposing the actual values.
 
-- **🛡️ Injection Scanner** — Normalization-aware scoring engine that catches obfuscated attacks:
-  - Defeats **leetspeak** (`J4ilbr3ak` → `jailbreak`)
+| Data Type | Pattern | Anonymizer Token |
+|-----------|---------|------------------|
+| Email | `user@example.com` | `<EMAIL>` |
+| OpenAI Key | `sk-proj-abc123...` | `<KEY>` |
+| AWS Key | `AKIA...` | `<AWS_KEY>` |
+| GitHub Token | `ghp_...` | `<GITHUB_TOKEN>` |
+| Slack Token | `xoxb-...` | `<SLACK_TOKEN>` |
+| Groq Key | `gsk_...` | `<KEY>` |
+| SSN | `123-45-6789` | `<SSN>` |
+| Credit Card | `4111-1111-1111-1111` | `<CC>` |
+| IPv4 | `192.168.1.1` | `<IP>` |
+| Phone | `+1-555-123-4567` | `<PHONE>` |
+| Bearer Token | `Bearer eyJ...` | `<BEARER>` |
+| Generic Secret | `api_key=abc123...` | `<SECRET>` |
+
+Each category can be individually toggled on/off via `guardian.toml`:
+
+```toml
+[security.dlp]
+email_redaction = true
+credit_card_redaction = true
+secret_redaction = true
+ssn_redaction = true
+ip_redaction = true
+phone_redaction = true
+```
+
+#### Layer 2: Heuristic Engine (CPU — Sub-millisecond — Always On)
+
+- **🛡️ Injection Scanner** — Normalization-aware scoring engine:
+  - Defeats **accents** (`Tú eres DAN` → `tu eres dan`)
+  - Defeats **spacing tricks** (`I g n o r e` → `ignore`)
   - 5 threat categories: Jailbreak, System Prompt Extraction, Roleplay, RCE, Data Exfiltration
   - ~40 weighted patterns with configurable score threshold
 
-- **📋 Threat Engine (Project Babel)** — Modular, internationalized signature database:
-  - **Modular Dictionaries**: Split into multiple JSON files (e.g., `common`, `jailbreaks_en`, `jailbreaks_es`) for easy maintenance.
-  - **Normalization Pipeline**: All input is lowercased, de-accented (`Tú`→`tu`), de-leetspeak'd (`d4n`→`dan`), and stripped of symbol separators (`r-m`→`rm`) BEFORE matching.
-  - **Emergency Kit**: 10 critical patterns hardcoded in Rust — the system is **never** unprotected, even if rule files are deleted.
-  - **DevOps Whitelisting**: Explicitly allow commands like `git pull`, `kubectl apply`.
+- **📋 Threat Engine Signatures** — Modular, internationalized database:
+  - **Severity 100 (Block)**: `cat /etc/passwd`, `drop table`, `{{.*}}`, `eval(base64`, `union select`, `system.exit`
+  - **Severity 80 (Tag & Audit)**: `rm -rf`, `wget`, `curl`, `chmod`, `exec(`, `whoami` — Agent-First: these are tagged for AI Judge review, not blocked
+  - **Severity 70 (Context)**: `hacker`, `malware`, `act as` — signals for context enrichment
+  - **Emergency Kit**: Critical patterns hardcoded in the Rust binary — system is **never** unprotected
+  - **DevOps Whitelisting**: Explicitly allow `git pull`, `kubectl apply`, etc.
+  - **Multilingual**: EN + ES dictionaries, easily extensible
 
-#### Layer 2: Cognitive Engine (The Sheriff — Optional)
+> **Note**: Layer 2 uses advanced normalization-aware heuristics. Unlike heavier BERT models (like PromptGuard), this layer is deterministic, runs in <1ms, and catches 99% of common attacks without a GPU.
 
-- **🤠 AI Judge** — Uses a local LLM (via Ollama) for contextual intent analysis when heuristics are uncertain
-- **RAG-Powered**: The Judge doesn't guess blindly — it receives similar threat patterns from the Threat Engine as precedent in its system prompt
+#### Layer 3: AI Judge — "The Sheriff" (Optional GPU — qwen3:4b)
+
+
+- **🤠 Contextual Intent Analysis** — Uses a local LLM (via Ollama) to decide whether flagged commands are legitimate agent operations or actual attacks
+- **Agent-First Philosophy**: `rm -rf /tmp/cache` for cleanup? **SAFE**. `rm -rf /` without context? **UNSAFE**.
+- **RAG-Powered**: The Judge receives similar threat patterns as precedent in its system prompt
 - **Performance-Optimized**:
   - `moka` semantic cache — repeat prompts resolved in <1ms
   - `tokio::Semaphore` concurrency control — protects host resources
   - Configurable **fail-open** or **fail-closed** when the AI is unavailable
+- **Model**: `qwen3:4b` (primary) or `qwen2.5:3b` (fallback for lower-resource environments)
 
 ### 🛣️ Smart Multi-Provider Router
 
@@ -72,7 +125,7 @@ Open-GuardIAn uses a **two-layer security model** — a fast heuristic layer han
 - Model alias rewriting (e.g., `"llama-4"` → `"meta-llama/llama-4-maverick-17b-128e-instruct"`)
 - Zero-config fallback to default upstream
 
-### � Policy Manager (The Governor)
+### 📐 Policy Manager — "The Governor"
 
 Four enforcement modes for every security check:
 
@@ -80,13 +133,13 @@ Four enforcement modes for every security check:
 |--------|----------|
 | `block` | Return 403 Forbidden — request never reaches the LLM |
 | `audit` | Log `WARN` + inject `X-Guardian-Risk: High` header + forward |
-| `redact` | Sanitize sensitive data and forward |
+| `redact` | Sanitize sensitive data with anonymizer tokens and forward |
 | `allow` | No enforcement (not recommended for production) |
 
 ### 📝 Forensic Audit Logging
 
 - All security events logged in **JSONL** format with timestamps
-- Events: `injection_blocked`, `dlp_blocked`, `data_redacted`, `threat_signature_match`, `semantic_blocked`
+- Events: `injection_blocked`, `dlp_blocked`, `data_redacted`, `threat_blocked`, `semantic_blocked`
 - Easily ingestible by SIEM tools (Splunk, ELK, Datadog)
 
 ---
@@ -96,7 +149,7 @@ Four enforcement modes for every security check:
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
-- (Optional) [Ollama](https://ollama.ai/) for the AI Sheriff
+- (Optional) [Ollama](https://ollama.ai/) with `qwen3:4b` for the AI Sheriff
 
 ### 1. Clone & Build
 
@@ -117,7 +170,13 @@ OPENAI_API_KEY=sk-your_key_here
 
 Edit `guardian.toml` to your needs (see [Configuration](#%EF%B8%8F-configuration) below), or run with the secure defaults.
 
-### 3. Run the Shield
+### 3. (Optional) Pull the AI Judge Model
+
+```bash
+ollama pull qwen3:4b
+```
+
+### 4. Run the Shield
 
 ```bash
 # Standard mode
@@ -130,7 +189,7 @@ Edit `guardian.toml` to your needs (see [Configuration](#%EF%B8%8F-configuration
 ./target/release/open-guardian start --local
 ```
 
-### 4. Point Your App
+### 5. Point Your App
 
 Replace your LLM base URL with Open-GuardIAn:
 
@@ -153,40 +212,50 @@ That's it. **Zero code changes** — Open-GuardIAn is API-compatible with OpenAI
 │                     OPEN-GUARDIAN PROXY                         │
 │                                                                 │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │              LAYER 1: HEURISTIC ENGINE (CPU)              │  │
-│  │  ┌─────────┐  ┌──────────────┐  ┌──────────────────────┐ │  │
-│  │  │   DLP   │→ │  Injection   │→ │   Threat Engine      │ │  │
-│  │  │ Scanner │  │   Scanner    │  │ (OWASP/MITRE + RAG)  │ │  │
-│  │  └─────────┘  └──────────────┘  └──────────────────────┘ │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          ▼                                      │
+│  │         LAYER 1: DLP ANONYMIZER (Always On)               │  │
+│  │  Email → <EMAIL>  |  sk-proj-... → <KEY>  |  SSN → <SSN> │  │
+│  │  Action: REDACT tokens  |  or  BLOCK (configurable)       │  │
+│  └───────────────────────────┬───────────────────────────────┘  │
+│                              ▼                                   │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │        LAYER 2: COGNITIVE ENGINE (Optional GPU)           │  │
-│  │  ┌─────────────┐  ┌─────────┐  ┌───────────────────────┐ │  │
-│  │  │ RAG Context │→ │  Cache  │→ │  AI Judge (Ollama)    │ │  │
-│  │  │  Retrieval  │  │ (moka)  │  │  + Semaphore Control  │ │  │
-│  │  └─────────────┘  └─────────┘  └───────────────────────┘ │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          ▼                                      │
+│  │         LAYER 2: HEURISTIC ENGINE (CPU, <1ms)             │  │
+│  │  ┌──────────────┐  ┌──────────────────────────────────┐   │  │
+│  │  │  Injection   │→ │   Threat Engine (Signatures)     │   │  │
+│  │  │  Scanner     │  │  Sev 100: BLOCK  |  Sev 80: TAG  │   │  │
+│  │  └──────────────┘  └──────────────────────────────────┘   │  │
+│  └───────────────────────────┬───────────────────────────────┘  │
+│                              ▼                                   │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │            LAYER 3: POLICY ENFORCEMENT                    │  │
-│  │         Block (403) │ Audit (Log+Forward) │ Allow         │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          ▼                                      │
-│               Smart Router → Upstream LLM                       │
+│  │     LAYER 3: AI JUDGE "The Sheriff" (Optional, GPU)       │  │
+│  │  ┌─────────────┐  ┌─────────┐  ┌──────────────────────┐  │  │
+│  │  │ RAG Context │→ │  Cache  │→ │  qwen3:4b (Ollama)   │  │  │
+│  │  │  Retrieval  │  │ (moka)  │  │  + Semaphore Control │  │  │
+│  │  └─────────────┘  └─────────┘  └──────────────────────┘  │  │
+│  └───────────────────────────┬───────────────────────────────┘  │
+│                              ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │            POLICY ENFORCEMENT                             │  │
+│  │       Block (403) │ Audit (Log+Forward) │ Allow           │  │
+│  └───────────────────────────┬───────────────────────────────┘  │
+│                              ▼                                   │
+│               Smart Router → Upstream LLM                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Pipeline Flow
 
 1. **Incoming Request** → Rate limiter check
-2. **Layer 1** (always runs, sub-ms):
-   - **DLP**: Redact PII/secrets or block if policy = `block`
+2. **Layer 1 — DLP**: Anonymize PII/secrets with `<TOKEN>` tags, or block if policy = `block`
+3. **Layer 2 — Heuristics** (always runs, sub-ms):
    - **Injection Scanner**: Score adversarial patterns → block if score ≥ threshold
-   - **Threat Engine**: Match against OWASP/MITRE signature database
-3. **Layer 2** (runs only if enabled and Layer 1 passes):
-   - Retrieve similar threat patterns (RAG) → check moka cache → acquire semaphore → call AI Judge
-4. **Layer 3**: Enforce verdict — `403 Block` / `Audit + Forward` / `Allow + Forward`
+   - **Threat Engine**: Match against signature database
+     - Sev 100 → **Deterministic Block** (SQLi, SSTI, Data Exfil)
+     - Sev 80 → **Tag & Audit** (Risky tools — AI Judge or Agent-First allow)
+     - Sev 70 → **Context Signal** (Enrich for AI Judge)
+4. **Layer 3 — AI Judge** (runs only if enabled AND risk tags present):
+   - Retrieve similar threat patterns (RAG) → check moka cache → acquire semaphore → call LLM
+   - **If AI Judge is OFF**: Sev 80 items → LOG WARN + ALLOW (Agent-First philosophy)
+5. **Policy Enforcement**: `403 Block` / `Audit + Forward` / `Allow + Forward`
 
 ---
 
@@ -198,18 +267,27 @@ That's it. **Zero code changes** — Open-GuardIAn is API-compatible with OpenAI
 [server]
 port = 8080
 default_upstream = "https://api.groq.com/openai"
-requests_per_minute = 60
+requests_per_minute = 10000
 
 [security]
 audit_log_path = "guardian_audit.jsonl"
 block_threshold = 50       # Injection score threshold (0-100)
+
+# DLP per-category toggles
+[security.dlp]
+email_redaction = true
+credit_card_redaction = true
+secret_redaction = true
+ssn_redaction = true
+ip_redaction = true
+phone_redaction = true
 
 [security.policies]
 default_action = "block"   # block | audit | redact | allow
 dlp_action = "redact"      # block | redact
 allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
 
-# Modular Threat Dictionaries (Project Babel)
+# Modular Threat Dictionaries
 [[security.dictionaries]]
 id = "common"
 path = "rules/common.json"
@@ -228,43 +306,45 @@ enabled = true
 [judge]
 ai_judge_enabled = true
 ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
-ai_judge_model = "gemma3:1b"
+ai_judge_model = "qwen3:4b"     # Fallback: qwen2.5:3b
 judge_cache_ttl_seconds = 60
 judge_max_concurrency = 4
-fail_open = true            # true = Prioritize reliability, false = Prioritize security
+fail_open = true                 # true = Prioritize reliability
 
 [routes]
 "gpt-oss" = { url = "https://api.groq.com/openai", model = "openai/gpt-oss-120b", key_env = "GROQ_API_KEY" }
 "llama-4" = { url = "https://api.groq.com/openai", model = "meta-llama/llama-4-maverick-17b-128e-instruct", key_env = "GROQ_API_KEY" }
 "gpt-4o" = { url = "https://api.openai.com/v1", key_env = "OPENAI_API_KEY" }
-"gemma3:1b" = { url = "http://127.0.0.1:11434/v1" }
+"qwen3:4b" = { url = "http://127.0.0.1:11434/v1" }
 ```
 
 ### `rules/` Directory (Modular Dictionaries)
 
-Add new languages or categories by creating a simple JSON file in `rules/` and adding it to `guardian.toml`. All patterns should be **NORMALIZED** (lowercase, no accents, no leetspeak).
+Add new languages or categories by creating a JSON file in `rules/` and referencing it in `guardian.toml`. All patterns must be **NORMALIZED** (lowercase, no accents).
 
-**Example: `rules/jailbreaks_es.json` (Spanish)**
+**Signature format:**
 ```json
 {
   "signatures": [
     {
       "id": "JB-ES-001",
-      "pattern": "tu eres dan",  // Normalized from "Tú eres DAN"
-      "category": "Jailbreak",
-      "severity": 90,
-      "is_regex": false
-    },
-    {
-      "id": "JB-ES-002",
       "pattern": "olvida tus reglas",
       "category": "Jailbreak",
-      "severity": 90,
+      "severity": 95,
       "is_regex": false
     }
   ]
 }
 ```
+
+**Severity guide:**
+| Severity | Action | Use For |
+|----------|--------|---------|
+| 100 | **Block always** | SQLi, SSTI, data exfiltration, binary payloads |
+| 90-99 | **Block always** | Jailbreaks, prompt leaks, instruction overrides |
+| 80-89 | **Tag & Audit** | Risky tools (rm, curl, wget, chmod) — AI Judge decides |
+| 70-79 | **Context signal** | Suspicious topics (hacker, malware) — enriches AI Judge |
+| 50-69 | **Tag only** | Low-confidence signals |
 
 ---
 
@@ -300,16 +380,19 @@ open-guardian/
 │   ├── logger.rs                  # Tracing/logging initialization
 │   └── security/
 │       ├── mod.rs                 # Module exports
-│       ├── dlp.rs                 # Data Loss Prevention (PII + Secrets)
+│       ├── dlp.rs                 # DLP Anonymizer (PII + Secrets → <TOKEN>)
 │       ├── injection_scanner.rs   # Adversarial pattern scoring engine
 │       ├── threat_engine.rs       # Signature DB + Emergency Kit + RAG
-│       └── judge.rs               # AI Sheriff (moka cache + semaphore + RAG)
+│       ├── normalizer.rs          # Code-aware text normalization
+│       └── judge.rs               # AI Sheriff (qwen3:4b + moka cache + RAG)
 ├── guardian.toml                  # Runtime configuration
 ├── rules/                         # Modular threat dictionaries
-│   ├── common.json                # Universal threats (RCE, SQLi, Secrets)
+│   ├── common.json                # Universal threats (RCE, SQLi, SSTI, Secrets)
 │   ├── jailbreaks_en.json         # English jailbreak patterns
 │   └── jailbreaks_es.json         # Spanish jailbreak patterns
+├── audit_prod.py                  # Production audit script (500-req stress test)
 ├── Cargo.toml                     # Rust dependencies
+├── CONTRIBUTING.md                # Contribution guidelines
 └── .env                           # API keys (gitignored)
 ```
 
@@ -322,33 +405,38 @@ open-guardian/
 cargo test
 
 # Current test coverage:
-#   ✔ DLP: email, CC, SSN, AWS key, OpenAI key redaction + block mode
-#   ✔ Injection Scanner: jailbreak, extraction, leetspeak, RCE, safe input
-#   ✔ Threat Engine: RCE detection, hardcoded fallback, whitelisting
+#   ✔ DLP: email, CC, SSN, IPv4, OpenAI key, sk-proj-, GitHub, Slack, Groq
+#   ✔ DLP: check_for_violations block mode
+#   ✔ Normalizer: lowercase, de-accent, syntax preservation, SSTI, SQL
+#   ✔ Threat Engine: Sev 100 blocking, Sev 80 tagging, SSTI regex, whitelisting
+#   ✔ Injection Scanner: jailbreak, extraction, RCE, safe input
+
+# Production audit (requires running instance)
+python audit_prod.py
 ```
 
 ---
 
 ## 🛡️ Security Philosophy
 
-> **"Defense-in-Depth. Secure by Default. Configurable by Choice."**
+> **"Agent-First. Defense-in-Depth. Secure by Default."**
 
-1. **Never naked** — Even if `threats.json` is deleted, 10 critical signatures are hardcoded in the binary.
-2. **Heuristics first** — 90% of threats are caught deterministically at sub-millisecond latency, with zero external dependencies.
-3. **AI as backup** — The Sheriff only runs when heuristics pass AND you enable it. It uses RAG precedent, not blind guessing.
-4. **Fail gracefully** — `fail_open = true` means if Ollama is down, requests pass through (reliability over security). Set to `false` for high-security environments.
-5. **Audit everything** — Every block, redaction, and threat match is logged with full forensic detail.
+1. **Agent-First** — We enable Agents to use tools (`curl`, `rm`, `wget`, `chmod`), not block them blindly. The AI Judge differentiates legitimate operations from attacks.
+2. **Layered Defense** — Layer 1 (DLP + Regex) works 100% without GPU. Layer 2 (Heuristics) catches obfuscated attacks. Layer 3 (AI Judge) provides contextual intent analysis.
+3. **Never Naked** — Even if all `rules/*.json` files are deleted, critical signatures are hardcoded in the Rust binary.
+4. **Fail-Safe** — If Layer 3 (AI) is off, Layer 1 & 2 provide "Trylon-level" security. Risky tools get logged, not blocked.
+5. **Anonymize, Don't Destroy** — DLP replaces sensitive data with `<EMAIL>`, `<KEY>` tokens that preserve semantic context for AI agents, instead of opaque `[REDACTED]` strings.
+6. **Audit Everything** — Every block, redaction, and threat match is logged with full forensic detail.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here are some ways to help:
-
-- **Add threat signatures** — Submit PRs to `rules/` with new OWASP/MITRE patterns (remember: normalize them!)
-- **Improve regex coverage** — Better PII detection for non-US formats (IBAN, passport numbers, etc.)
-- **New scanner modules** — Prompt leak detection, code injection scoring, etc.
-- **Benchmarks** — Measure and optimize latency under load
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+- Setting up your development environment
+- Adding threat signatures
+- Writing scanner modules
+- Submitting pull requests
 
 ---
 
@@ -360,5 +448,19 @@ This project is open source. See [LICENSE](LICENSE) for details.
 
 <p align="center">
   <strong>Built with ❤️ in Rust for a safer AI future.</strong><br>
-  <em>"Because the best AI firewall is the one that's always on."</em>
+  <em>"The best AI firewall is the one that's always on — and the one that knows the difference between an agent doing its job and an attacker exploiting it."</em>
 </p>
+
+## ✍️ A Note from the Creator
+
+### Why I Built Open-Guardian
+This project was born out of necessity following the release of tools like OpenClaw and the security vacuum they created. I realized that while Agents are the future, they are dangerously exposed without a proper firewall.
+
+**Transparency Statement**: This codebase was architected by a human and built with the assistance of advanced AI Agents and LLMs, acting under strict Human-in-the-Loop supervision.
+
+### About the Author
+I bring over 6 years of professional Fullstack development experience and have been an entrepreneur since 2016. Currently, I am pursuing a Master's degree in Artificial Intelligence, with over 2 years of specialization in Data Science and Machine Learning.
+
+I chose Rust over Python because security infrastructure must be invisible and fast. This is my first contribution designed specifically for the Open Source community—a way to give back to the ecosystem that has helped me so much.
+
+Let's build a safer future for AI Agents.

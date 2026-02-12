@@ -31,6 +31,7 @@ pub struct ServerConfig {
     pub timeout_seconds: u64,
     pub verbose: bool,
     pub policies: PolicyConfig,
+    pub dlp_config: crate::config::DlpConfig,
 }
 
 #[derive(Clone)]
@@ -48,6 +49,7 @@ struct AppState {
     // Policy settings
     default_action: PolicyAction,
     dlp_action: DlpAction,
+    dlp_config: crate::config::DlpConfig,
 }
 
 async fn health_handler() -> impl IntoResponse {
@@ -78,6 +80,7 @@ pub async fn start_server(config: ServerConfig, shutdown_token: tokio_util::sync
         verbose: config.verbose,
         default_action,
         dlp_action,
+        dlp_config: config.dlp_config.clone(),
     };
 
     let app = Router::new()
@@ -86,14 +89,19 @@ pub async fn start_server(config: ServerConfig, shutdown_token: tokio_util::sync
         .with_state(state.clone());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    banner::print_step(&format!("Shield active on {}", addr));
-    banner::print_step(&format!("Default upstream target: {}", config.default_upstream));
-    banner::print_step(&format!("Policy: default_action={:?}, dlp_action={:?}", default_action, dlp_action));
-    
-    if config.judge_config.ai_judge_enabled.unwrap_or(false) {
-        banner::print_step(&format!("AI Administrative Judge active (The Sheriff) — Model: {}", 
-            config.judge_config.ai_judge_model.as_ref().unwrap_or(&"gemma3:1b".to_string())));
-    }
+    let model_info = if config.judge_config.ai_judge_enabled.unwrap_or(false) {
+        config.judge_config.ai_judge_model.as_ref().unwrap_or(&"qwen3:4b".to_string()).clone()
+    } else {
+        "DISABLED".to_string()
+    };
+
+    banner::print_startup_info(
+        &addr.to_string(),
+        &config.default_upstream,
+        &format!("{:?}", default_action),
+        &format!("{:?}", dlp_action),
+        &model_info
+    );
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     
@@ -251,53 +259,55 @@ async fn handler(
 
                 // ── Step 1a: DLP (Data Loss Prevention) ──
                 let dlp_start = std::time::Instant::now();
-                match state.dlp_action {
-                    DlpAction::Block => {
-                        if let Some(violation) = check_for_violations(&content_text) {
-                            if state.verbose { println!("   {} DLP block check: {:?}", "DEBUG:".bright_black(), dlp_start.elapsed()); }
-                            
-                            banner::print_warning(&format!("DLP BLOCKED: {} in {}", violation.description, path_str));
-                            log_security_event(state.audit_log_path.clone(), serde_json::json!({
-                                "timestamp": Utc::now().to_rfc3339(),
-                                "event": "dlp_blocked",
-                                "path": path_str,
-                                "category": violation.category,
-                                "description": violation.description
-                            }));
-
-                            return block_response(
-                                &violation.category,
-                                "dlp_violation",
-                                &format!("Access Denied: {}", violation.description)
-                            );
-                        }
+                
+                // Block Check
+                if let Some(violation) = check_for_violations(&content_text, Some(&state.dlp_config)) {
+                    if state.verbose { println!("   {} DLP violation check: {:?}", "DEBUG:".bright_black(), dlp_start.elapsed()); }
+                    
+                    if state.dlp_action == DlpAction::Block {
+                        banner::print_warning(&format!("DLP BLOCKED: {} in {}", violation.description, path_str));
+                        log_security_event(state.audit_log_path.clone(), serde_json::json!({
+                            "timestamp": Utc::now().to_rfc3339(),
+                            "event": "dlp_blocked",
+                            "path": path_str,
+                            "category": violation.category,
+                            "description": violation.description
+                        }));
+                        return block_response(
+                            &violation.category,
+                            "dlp_violation",
+                            &format!("Access Denied: {}", violation.description)
+                        );
+                    } else {
+                        tracing::info!("DLP: {} detected, redacting", violation.category);
                     }
-                    DlpAction::Redact => {
-                        let cleaned = redact_pii(&content_text);
-                        if state.verbose { println!("   {} DLP redact check: {:?}", "DEBUG:".bright_black(), dlp_start.elapsed()); }
+                }
 
-                        if cleaned != content_text {
-                            banner::print_success(&format!("Redacted sensitive data in request to {}", path_str));
-                            tracing::info!("DLP redaction applied for request to {}", path_str);
-                            modified = true;
+                // Redaction Process
+                let cleaned = redact_pii(&content_text, Some(&state.dlp_config));
+                if state.verbose { println!("   {} DLP redact check: {:?}", "DEBUG:".bright_black(), dlp_start.elapsed()); }
 
-                            log_security_event(state.audit_log_path.clone(), serde_json::json!({
-                                "timestamp": Utc::now().to_rfc3339(),
-                                "event": "data_redacted",
-                                "path": path_str
-                            }));
+                if cleaned != content_text {
+                    banner::print_success(&format!("Redacted sensitive data in request to {}", path_str));
+                    tracing::info!("DLP redaction applied for request to {}", path_str);
+                    modified = true;
 
-                            if let Some(content_val) = message.get_mut("content") {
-                                if content_val.is_string() {
-                                    *content_val = Value::String(cleaned.clone());
-                                } else if let Some(parts) = content_val.as_array_mut() {
-                                    for part in parts {
-                                        if let Some(text_val) = part.get("text").and_then(|t| t.as_str()) {
-                                            let part_cleaned = redact_pii(text_val);
-                                            if let Some(t) = part.get_mut("text") {
-                                                *t = Value::String(part_cleaned);
-                                            }
-                                        }
+                    log_security_event(state.audit_log_path.clone(), serde_json::json!({
+                        "timestamp": Utc::now().to_rfc3339(),
+                        "event": "data_redacted",
+                        "path": path_str
+                    }));
+
+                    // Update the message content with redacted text
+                    if let Some(content_val) = message.get_mut("content") {
+                        if content_val.is_string() {
+                            *content_val = Value::String(cleaned.clone());
+                        } else if let Some(parts) = content_val.as_array_mut() {
+                            for part in parts {
+                                if let Some(text_val) = part.get("text").and_then(|t| t.as_str()) {
+                                    let part_cleaned = redact_pii(text_val, Some(&state.dlp_config));
+                                    if let Some(t) = part.get_mut("text") {
+                                        *t = Value::String(part_cleaned);
                                     }
                                 }
                             }
@@ -345,83 +355,90 @@ async fn handler(
                     }
                 }
 
-                // ── Step 1c: Threat Engine Signatures ──
+                // ── Step 1c: Threat Engine Scan ──
                 let sig_start = std::time::Instant::now();
-                let threat_match = state.threat_engine.check_signatures(scan_text);
-                if state.verbose { println!("   {} Threat signatures: {:?}", "DEBUG:".bright_black(), sig_start.elapsed()); }
+                let scan_result = state.threat_engine.check(scan_text);
+                
+                if state.verbose { 
+                    println!("   {} Threat Scan: {:?} (Blocked: {}, RiskTags: {:?})", 
+                        "DEBUG:".bright_black(), sig_start.elapsed(), scan_result.blocked, scan_result.risk_tags); 
+                }
 
-                if let Some(ref tm) = threat_match {
-                    banner::print_warning(&format!("Threat signature match: {} ({}, severity={})", tm.id, tm.category, tm.severity));
+                // LAYER 1: HARD SHIELD (Deterministic Block)
+                if scan_result.blocked {
+                    let tags_str = scan_result.risk_tags.join(", ");
+                    banner::print_warning(&format!("BLOCK (Severity 90+): {}", tags_str));
                     
                     log_security_event(state.audit_log_path.clone(), serde_json::json!({
                         "timestamp": Utc::now().to_rfc3339(),
-                        "event": "threat_signature_match",
+                        "event": "threat_blocked",
                         "path": path_str,
-                        "threat_id": tm.id,
-                        "category": tm.category,
-                        "severity": tm.severity,
-                        "matched_pattern": tm.matched_pattern
+                        "tags": &scan_result.risk_tags,
+                        "severity": scan_result.max_severity
                     }));
 
                     match state.default_action {
                         PolicyAction::Audit => {
                             risk_level = Some("Critical");
-                            tracing::warn!("AUDIT: Threat signature {} matched but forwarding per audit policy", tm.id);
+                            tracing::warn!("AUDIT: Threat blocked but forwarding per audit policy");
                         }
                         PolicyAction::Allow => {
-                            tracing::warn!("ALLOW: Threat signature {} matched but policy is 'allow'", tm.id);
+                            tracing::warn!("ALLOW: Threat blocked but policy is 'allow'");
                         }
                         _ => {
                             return block_response(
-                                &tm.category,
-                                &format!("threat_signature:{}", tm.id),
-                                &format!("Access Denied: Known threat pattern detected ({})", tm.category)
+                                "CriticalThreat",
+                                "threat_signature_blocked",
+                                &format!("Access Denied: Critical Threat Detected ({})", tags_str)
                             );
                         }
                     }
                 }
 
                 // ════════════════════════════════════════════════════
-                // LAYER 2: COGNITIVE ENGINE (GPU — Optional)
+                // LAYER 2 & 3: HEURISTIC TAGGING + AI JUDGE
                 // ════════════════════════════════════════════════════
-                // Runs ONLY if Layer 1 passes AND judge.enabled = true
-
-                let judge_start = std::time::Instant::now();
+                // If not blocked, but has risks (Sev 50-89), consult the Judge.
                 
-                // RAG Retrieval: get similar threats for context injection
-                let similar_threats = state.threat_engine.find_similar(scan_text, 0.4);
-                if state.verbose && !similar_threats.is_empty() {
-                    println!("   {} RAG context: {} similar threats found", "DEBUG:".bright_black(), similar_threats.len());
-                }
+                let has_risks = !scan_result.risk_tags.is_empty();
+                let judge_enabled = state.judge.is_enabled();
 
-                let judge_passed = state.judge.check_prompt(scan_text, &similar_threats).await;
-                if state.verbose { println!("   {} AI Judge check: {:?}", "DEBUG:".bright_black(), judge_start.elapsed()); }
-
-                if !judge_passed {
-                    banner::print_error(&format!("AI Judge blocked request to {}: Violates Safety Policy", path_str));
-                    tracing::error!("Semantic policy block by AI Judge for request to {}", path_str);
+                if has_risks || judge_enabled {
+                    let judge_start = std::time::Instant::now();
                     
-                    log_security_event(state.audit_log_path.clone(), serde_json::json!({
-                        "timestamp": Utc::now().to_rfc3339(),
-                        "event": "semantic_blocked",
-                        "path": path_str,
-                        "similar_threats": similar_threats.len()
-                    }));
+                    // RAG Retrieval for context (even if not strictly blocked, we want similarity)
+                    let similar_threats = state.threat_engine.find_similar(scan_text, 0.4);
+                    
+                    let judge_passed = state.judge.check_prompt(scan_text, &scan_result.risk_tags, &similar_threats).await;
+                    
+                    if state.verbose { println!("   {} AI Judge check: {:?}", "DEBUG:".bright_black(), judge_start.elapsed()); }
 
-                    match state.default_action {
-                        PolicyAction::Audit => {
-                            risk_level = Some("High");
-                            tracing::warn!("AUDIT: AI Judge flagged request but forwarding per audit policy");
-                        }
-                        PolicyAction::Allow => {
-                            tracing::warn!("ALLOW: AI Judge flagged request but policy is 'allow'");
-                        }
-                        _ => {
-                            return block_response(
-                                "SemanticViolation",
-                                "semantic_violation_detected",
-                                "Access Denied: Your request was blocked by the AI Governance Engine (The Sheriff)."
-                            );
+                    if !judge_passed {
+                        banner::print_error(&format!("AI Judge blocked request to {}: Violates Safety Policy", path_str));
+                        tracing::error!("Semantic policy block by AI Judge for request to {}", path_str);
+                        
+                        log_security_event(state.audit_log_path.clone(), serde_json::json!({
+                            "timestamp": Utc::now().to_rfc3339(),
+                            "event": "semantic_blocked",
+                            "path": path_str,
+                            "risk_tags": &scan_result.risk_tags
+                        }));
+
+                        match state.default_action {
+                            PolicyAction::Audit => {
+                                risk_level = Some("High");
+                                tracing::warn!("AUDIT: AI Judge flagged request but forwarding per audit policy");
+                            }
+                            PolicyAction::Allow => {
+                                tracing::warn!("ALLOW: AI Judge flagged request but policy is 'allow'");
+                            }
+                            _ => {
+                                return block_response(
+                                    "SemanticViolation",
+                                    "semantic_violation_detected",
+                                    "Access Denied: Your request was blocked by the AI Governance Engine."
+                                );
+                            }
                         }
                     }
                 }

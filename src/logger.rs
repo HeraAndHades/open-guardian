@@ -16,13 +16,17 @@ pub fn init_logger() {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"));
 
+    // We only log to the file. 
+    // Console output is handled exclusively by banner.rs for a clean user experience.
     tracing_subscriber::registry()
         .with(filter)
-        .with(fmt::layer().with_writer(std::io::stdout))
-        .with(fmt::layer().with_writer(non_blocking).with_ansi(false))
+        .with(fmt::layer()
+            .with_writer(non_blocking)
+            .with_ansi(false)
+            .with_target(true))
         .init();
 
-    tracing::info!("Open-GuardIAn Logger Initialized. Base directory: {:?}", std::env::current_exe().ok());
+    tracing::info!("Open-GuardIAn Logger Initialized. Logs directed to file.");
     
     // leaked guard is intentional to keep logging alive for the process duration
     std::mem::forget(_guard);
