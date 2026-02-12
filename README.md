@@ -50,11 +50,11 @@ Open-GuardIAn uses a **two-layer security model** — a fast heuristic layer han
   - 5 threat categories: Jailbreak, System Prompt Extraction, Roleplay, RCE, Data Exfiltration
   - ~40 weighted patterns with configurable score threshold
 
-- **📋 Threat Engine** — Signature database powered by `threats.json`:
-  - 30 pre-loaded OWASP/MITRE signatures (RCE, SQL Injection, XSS, Jailbreak, Exfiltration)
-  - **Emergency Kit**: 10 critical patterns hardcoded in Rust — the system is **never** unprotected, even if `threats.json` is deleted
-  - **DevOps Whitelisting**: Explicitly allow commands like `git pull`, `kubectl apply`
-  - Users can add/remove signatures without recompiling
+- **📋 Threat Engine (Project Babel)** — Modular, internationalized signature database:
+  - **Modular Dictionaries**: Split into multiple JSON files (e.g., `common`, `jailbreaks_en`, `jailbreaks_es`) for easy maintenance.
+  - **Normalization Pipeline**: All input is lowercased, de-accented (`Tú`→`tu`), de-leetspeak'd (`d4n`→`dan`), and stripped of symbol separators (`r-m`→`rm`) BEFORE matching.
+  - **Emergency Kit**: 10 critical patterns hardcoded in Rust — the system is **never** unprotected, even if rule files are deleted.
+  - **DevOps Whitelisting**: Explicitly allow commands like `git pull`, `kubectl apply`.
 
 #### Layer 2: Cognitive Engine (The Sheriff — Optional)
 
@@ -207,8 +207,23 @@ block_threshold = 50       # Injection score threshold (0-100)
 [security.policies]
 default_action = "block"   # block | audit | redact | allow
 dlp_action = "redact"      # block | redact
-threats_path = "threats.json"
 allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
+
+# Modular Threat Dictionaries (Project Babel)
+[[security.dictionaries]]
+id = "common"
+path = "rules/common.json"
+enabled = true
+
+[[security.dictionaries]]
+id = "jailbreaks_en"
+path = "rules/jailbreaks_en.json"
+enabled = true
+
+[[security.dictionaries]]
+id = "jailbreaks_es"
+path = "rules/jailbreaks_es.json"
+enabled = true
 
 [judge]
 ai_judge_enabled = true
@@ -225,26 +240,27 @@ fail_open = true            # true = Prioritize reliability, false = Prioritize 
 "gemma3:1b" = { url = "http://127.0.0.1:11434/v1" }
 ```
 
-### `threats.json`
+### `rules/` Directory (Modular Dictionaries)
 
-Add or remove signatures without recompiling:
+Add new languages or categories by creating a simple JSON file in `rules/` and adding it to `guardian.toml`. All patterns should be **NORMALIZED** (lowercase, no accents, no leetspeak).
 
+**Example: `rules/jailbreaks_es.json` (Spanish)**
 ```json
 {
   "signatures": [
     {
-      "id": "RCE-001",
-      "pattern": "rm -rf",
-      "category": "RCE",
-      "severity": 95,
+      "id": "JB-ES-001",
+      "pattern": "tu eres dan",  // Normalized from "Tú eres DAN"
+      "category": "Jailbreak",
+      "severity": 90,
       "is_regex": false
     },
     {
-      "id": "JB-007",
-      "pattern": "disregard.*(?:rules|guidelines|instructions)",
+      "id": "JB-ES-002",
+      "pattern": "olvida tus reglas",
       "category": "Jailbreak",
-      "severity": 85,
-      "is_regex": true
+      "severity": 90,
+      "is_regex": false
     }
   ]
 }
@@ -289,7 +305,10 @@ open-guardian/
 │       ├── threat_engine.rs       # Signature DB + Emergency Kit + RAG
 │       └── judge.rs               # AI Sheriff (moka cache + semaphore + RAG)
 ├── guardian.toml                  # Runtime configuration
-├── threats.json                   # Threat signature database
+├── rules/                         # Modular threat dictionaries
+│   ├── common.json                # Universal threats (RCE, SQLi, Secrets)
+│   ├── jailbreaks_en.json         # English jailbreak patterns
+│   └── jailbreaks_es.json         # Spanish jailbreak patterns
 ├── Cargo.toml                     # Rust dependencies
 └── .env                           # API keys (gitignored)
 ```
@@ -326,7 +345,7 @@ cargo test
 
 Contributions are welcome! Here are some ways to help:
 
-- **Add threat signatures** — Submit PRs to `threats.json` with new OWASP/MITRE patterns
+- **Add threat signatures** — Submit PRs to `rules/` with new OWASP/MITRE patterns (remember: normalize them!)
 - **Improve regex coverage** — Better PII detection for non-US formats (IBAN, passport numbers, etc.)
 - **New scanner modules** — Prompt leak detection, code injection scoring, etc.
 - **Benchmarks** — Measure and optimize latency under load

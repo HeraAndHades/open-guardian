@@ -25,6 +25,19 @@ pub struct SecurityConfig {
     pub policies: Option<PolicyConfig>,
 }
 
+/// A single dictionary source for threat signatures.
+#[derive(Deserialize, Debug, Clone)]
+pub struct DictionarySource {
+    pub id: String,
+    pub path: String,
+    #[serde(default = "DictionarySource::default_enabled")]
+    pub enabled: bool,
+}
+
+impl DictionarySource {
+    fn default_enabled() -> bool { true }
+}
+
 /// Policy configuration: "Secure by Default, Configurable by Choice."
 #[derive(Deserialize, Debug, Clone)]
 pub struct PolicyConfig {
@@ -36,9 +49,9 @@ pub struct PolicyConfig {
     #[serde(default = "PolicyConfig::default_dlp_action")]
     pub dlp_action: String,
 
-    /// Path to the threat signature database
-    #[serde(default = "PolicyConfig::default_threats_path")]
-    pub threats_path: String,
+    /// Modular threat dictionaries (replaces old threats_path)
+    #[serde(default = "PolicyConfig::default_dictionaries")]
+    pub dictionaries: Vec<DictionarySource>,
 
     /// Whitelisted patterns (DevOps Mode) — these bypass the Threat Engine
     #[serde(default)]
@@ -48,7 +61,13 @@ pub struct PolicyConfig {
 impl PolicyConfig {
     fn default_action() -> String { "block".to_string() }
     fn default_dlp_action() -> String { "redact".to_string() }
-    fn default_threats_path() -> String { "threats.json".to_string() }
+    fn default_dictionaries() -> Vec<DictionarySource> {
+        vec![
+            DictionarySource { id: "common".into(), path: "rules/common.json".into(), enabled: true },
+            DictionarySource { id: "jailbreaks_en".into(), path: "rules/jailbreaks_en.json".into(), enabled: true },
+            DictionarySource { id: "jailbreaks_es".into(), path: "rules/jailbreaks_es.json".into(), enabled: true },
+        ]
+    }
 }
 
 impl Default for PolicyConfig {
@@ -56,7 +75,7 @@ impl Default for PolicyConfig {
         Self {
             default_action: Self::default_action(),
             dlp_action: Self::default_dlp_action(),
-            threats_path: Self::default_threats_path(),
+            dictionaries: Self::default_dictionaries(),
             allowed_patterns: Vec::new(),
         }
     }

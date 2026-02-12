@@ -58,7 +58,7 @@ pub async fn start_server(config: ServerConfig, shutdown_token: tokio_util::sync
     let proxy = ProxyClient::new(config.timeout_seconds)?;
     let judge = Judge::new(config.judge_config.clone());
     let threat_engine = ThreatEngine::new(
-        &config.policies.threats_path,
+        &config.policies.dictionaries,
         config.policies.allowed_patterns.clone(),
     );
     

@@ -14,25 +14,15 @@ pub struct SecurityScore {
     pub category: AttackCategory,
 }
 
-/// Normalize text to defeat leetspeak and common obfuscation.
-fn normalize_text(text: &str) -> String {
-    text.to_lowercase()
-        .replace('0', "o")
-        .replace('1', "i")
-        .replace('3', "e")
-        .replace('4', "a")
-        .replace('5', "s")
-        .replace('7', "t")
-        .replace('8', "b")
-        .replace('@', "a")
-        .replace('!', "i")
-}
+use super::normalizer;
 
 /// Analyze input for adversarial injection patterns using a scoring system.
 /// Each pattern category contributes to the total score. If the score exceeds
 /// the configured threshold, the request is blocked.
+///
+/// Input is preprocessed through the canonical normalizer before pattern matching.
 pub fn analyze_injection(content: &str) -> SecurityScore {
-    let normalized = normalize_text(content);
+    let normalized = normalizer::normalize(content);
     let mut score = 0u32;
     let mut category = AttackCategory::None;
 

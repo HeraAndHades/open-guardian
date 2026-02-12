@@ -1,0 +1,88 @@
+{
+    "signatures": [
+        {
+            "id": "JB-EN-001",
+            "pattern": "ignore previous instructions",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-002",
+            "pattern": "ignore all instructions",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-003",
+            "pattern": "do anything now",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-004",
+            "pattern": "dan mode",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-005",
+            "pattern": "jailbreak",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-006",
+            "pattern": "bypass safety",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-007",
+            "pattern": "disable safety",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-008",
+            "pattern": "without restrictions",
+            "category": "Jailbreak",
+            "severity": 80,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-009",
+            "pattern": "no restrictions",
+            "category": "Jailbreak",
+            "severity": 80,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-010",
+            "pattern": "unrestricted mode",
+            "category": "Jailbreak",
+            "severity": 80,
+            "is_regex": false
+        },
+        {
+            "id": "JB-EN-011",
+            "pattern": "disregard.*rules",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": true
+        },
+        {
+            "id": "JB-EN-012",
+            "pattern": "pretend you.*no.*rules",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": true
+        }
+    ]
+}

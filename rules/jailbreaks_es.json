@@ -1,0 +1,46 @@
+{
+    "signatures": [
+        {
+            "id": "JB-ES-001",
+            "pattern": "tu eres dan",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-ES-002",
+            "pattern": "olvida tus reglas",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-ES-003",
+            "pattern": "actua como",
+            "category": "Jailbreak",
+            "severity": 70,
+            "is_regex": false
+        },
+        {
+            "id": "JB-ES-004",
+            "pattern": "ignora las instrucciones",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-ES-005",
+            "pattern": "ahora eres dan",
+            "category": "Jailbreak",
+            "severity": 90,
+            "is_regex": false
+        },
+        {
+            "id": "JB-ES-006",
+            "pattern": "modo sin restricciones",
+            "category": "Jailbreak",
+            "severity": 85,
+            "is_regex": false
+        }
+    ]
+}
