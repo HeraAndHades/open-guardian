@@ -217,6 +217,56 @@ client = OpenAI(base_url="http://localhost:8080/v1")
 
 That's it. **Zero code changes** — Open-GuardIAn is API-compatible with OpenAI, Groq, Ollama, and any provider using the `/v1/chat/completions` standard.
 
+### 🤖 Production Deployment (Run as Service)
+
+Open-Guardian includes a built-in service manager that installs it as a **native system daemon** (Systemd on Linux, Launchd on macOS, Windows Service on Windows).
+
+| Feature | Detail |
+|---------|--------|
+| **Auto-Start** | Launches automatically on system boot. |
+| **Self-Healing** | Automatically restarts if the process crashes or is killed (`Restart=on-failure` on Linux, `sc failure` on Windows). |
+
+> [!IMPORTANT]
+> **Before installing the service**, ensure `guardian.toml` and `.env` are placed in the **same directory** as the `open-guardian` binary. The service locates its configuration relative to the executable path.
+
+#### 🪟 Windows (PowerShell as Administrator)
+
+```powershell
+# 1. Install & Register (Sets up Auto-Recovery via sc.exe)
+.\open-guardian.exe service install
+
+# 2. Start the Service
+.\open-guardian.exe service start
+
+# 3. Check Health
+.\open-guardian.exe service status
+```
+
+#### 🐧 Linux / 🍎 macOS (Terminal with Sudo)
+
+```bash
+# 1. Install (Creates Systemd/Launchd entry with restart policy)
+sudo ./open-guardian service install
+
+# 2. Start Background Daemon
+sudo ./open-guardian service start
+
+# 3. Verify Status
+sudo ./open-guardian service status
+```
+
+#### 🗑️ Uninstalling
+
+To remove the service cleanly:
+
+```bash
+# Stop and remove (use sudo on Linux/Mac, Administrator on Windows)
+./open-guardian service stop
+./open-guardian service uninstall
+```
+
+**Logs:** On Linux, use `journalctl -u open-guardian`. On Windows, check the Event Viewer or the `logs/` directory.
+
 ---
 
 ## 🏗️ Architecture
