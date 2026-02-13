@@ -146,12 +146,26 @@ Four enforcement modes for every security check:
 
 ## 🚀 Quickstart
 
-### Prerequisites
+### 📦 Installation (No Rust Required)
 
-- [Rust](https://rustup.rs/) (1.70+)
-- (Optional) [Ollama](https://ollama.ai/) with `qwen3:4b` for the AI Sheriff
+Don't want to compile? Download the latest pre-built binaries from the [Releases Page](https://github.com/your-username/open-guardian/releases).
 
-### 1. Clone & Build
+| Platform | Arch | Binary |
+|----------|------|--------|
+| 🐧 Linux | x64 | `open-guardian-linux-amd64.tar.gz` |
+| 🍎 macOS | Apple Silicon | `open-guardian-macos-arm64.tar.gz` |
+| 🍎 macOS | Intel | `open-guardian-macos-amd64.tar.gz` |
+| 🪟 Windows | x64 | `open-guardian-windows-amd64.zip` |
+
+#### Setup:
+
+1. **Unzip** the file.
+2. **Create a `.env` file** next to the binary with your API keys.
+3. **Run** the binary:
+   - **Linux/Mac**: `./open-guardian start`
+   - **Windows**: `.\open-guardian.exe start`
+
+### 🛠️ Compiling from Source
 
 ```bash
 git clone https://github.com/your-org/open-guardian.git
