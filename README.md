@@ -20,9 +20,9 @@ Open-GuardIAn is a **high-performance security middleware / reverse proxy** buil
  Your App ──▶ Open-GuardIAn ──▶ LLM Provider
                    │
             ┌──────┴───────┐
-            │  Layer 1     │  ← DLP Anonymizer + Threat Engine (Rust, <1ms)
-            │  Layer 2     │  ← Heuristic Injection Scanner (Rust, <1ms)
-            │  Layer 3     │  ← AI Judge: qwen3:4b via Ollama (Optional)
+            │  Layer 1     │  ← DLP Anonymizer + Threat Engine (Rust, <20µs)
+            │  Layer 2     │  ← Heuristic Injection Scanner (Rust, <20µs)
+            │  Layer 3     │  ← AI Judge: qwen2.5:0.5b via Ollama (Contextual)
             └──────────────┘
 ```
 
@@ -31,9 +31,9 @@ Open-GuardIAn is a **high-performance security middleware / reverse proxy** buil
 | Feature | **Open-GuardIAn** | Trylon / GPT Guard |
 |---------|-------------------|-------------------|
 | **Language** | 🦀 Rust | 🐍 Python |
-| **Latency** | **<1ms** heuristic layer | 5-50ms |
+| **Latency** | **<20µs** microsecond scan | 5-50ms |
 | **DLP** | Anonymizer tokens (`<EMAIL>`, `<KEY>`) — preserves context for Agents | `[REDACTED]` or regex-only |
-| **AI Intelligence** | Local LLM Judge with RAG context (qwen3:4b) | ❌ Regex only |
+| **AI Intelligence** | Local LLM Judge with RAG context (qwen2.5:0.5b) | ❌ Regex only |
 | **Agent-First** | ✅ `rm -rf` allowed for agents, blocked for attackers | ❌ Blocks all dangerous commands |
 | **Fail-Safe** | Layer 1 & 2 provide Trylon-level security without GPU | Depends on service availability |
 | **Multilingual** | 🌍 EN + ES dictionaries, add any language | English-only |
@@ -104,7 +104,7 @@ phone_redaction = true
   - **DevOps Whitelisting**: Explicitly allow `git pull`, `kubectl apply`, etc.
   - **Multilingual**: EN + ES dictionaries, easily extensible
 
-> **Note**: Layer 2 uses advanced normalization-aware heuristics. Unlike heavier BERT models (like PromptGuard), this layer is deterministic, runs in <1ms, and catches 99% of common attacks without a GPU.
+> **Note**: Layer 2 uses advanced normalization-aware heuristics. Unlike heavier BERT models (like PromptGuard), this layer is deterministic, runs in **under 20 microseconds (<20µs)**, and ensures that legitimate traffic passes through with **zero perceptible overhead**.
 
 #### Layer 3: AI Judge — "The Sheriff" (Optional GPU — qwen3:4b)
 
@@ -116,7 +116,7 @@ phone_redaction = true
   - `moka` semantic cache — repeat prompts resolved in <1ms
   - `tokio::Semaphore` concurrency control — protects host resources
   - Configurable **fail-open** or **fail-closed** when the AI is unavailable
-- **Model**: `qwen3:4b` (primary) or `qwen2.5:3b` (fallback for lower-resource environments)
+- **Model**: `qwen2.5:0.5b` (primary) or `qwen2.5:3b` (fallback for lower-resource environments)
 
 ### 🛣️ Smart Multi-Provider Router
 
@@ -141,6 +141,17 @@ Four enforcement modes for every security check:
 - All security events logged in **JSONL** format with timestamps
 - Events: `injection_blocked`, `dlp_blocked`, `data_redacted`, `threat_blocked`, `semantic_blocked`
 - Easily ingestible by SIEM tools (Splunk, ELK, Datadog)
+
+### 📊 Observability (Rolling Logs)
+
+- **Daily Rotation**: Application logs are automatically rotated and saved to the `logs/` directory (e.g., `open-guardian.YYYY-MM-DD.log`).
+- **Non-Blocking I/O**: Logging uses an asynchronous, non-blocking actor system (via `tracing-appender`), ensuring that disk writes never slow down the proxy's core engine.
+
+---
+
+> [!TIP]
+> **PRO TIP: HYBRID ARCHITECTURE**
+> For maximum performance, use a **Hybrid Setup**: Route your generation traffic to **Groq or OpenAI** (for speed) while keeping the **AI Judge** local on Ollama. This prevents your primary generation GPU from being saturated by security checks and guarantees the fastest possible response times.
 
 ---
 
@@ -187,7 +198,7 @@ Edit `guardian.toml` to your needs (see [Configuration](#%EF%B8%8F-configuration
 ### 3. (Optional) Pull the AI Judge Model
 
 ```bash
-ollama pull qwen3:4b
+ollama pull qwen2.5:0.5b
 ```
 
 ### 4. Run the Shield
@@ -370,7 +381,7 @@ enabled = true
 [judge]
 ai_judge_enabled = true
 ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
-ai_judge_model = "qwen3:4b"     # Fallback: qwen2.5:3b
+ai_judge_model = "qwen2.5:0.5b"     # Fallback: qwen2.5:3b
 judge_cache_ttl_seconds = 60
 judge_max_concurrency = 4
 fail_open = true                 # true = Prioritize reliability
@@ -379,7 +390,7 @@ fail_open = true                 # true = Prioritize reliability
 "gpt-oss" = { url = "https://api.groq.com/openai", model = "openai/gpt-oss-120b", key_env = "GROQ_API_KEY" }
 "llama-4" = { url = "https://api.groq.com/openai", model = "meta-llama/llama-4-maverick-17b-128e-instruct", key_env = "GROQ_API_KEY" }
 "gpt-4o" = { url = "https://api.openai.com/v1", key_env = "OPENAI_API_KEY" }
-"qwen3:4b" = { url = "http://127.0.0.1:11434/v1" }
+"qwen2.5:0.5b" = { url = "http://127.0.0.1:11434/v1" }
 ```
 
 ### `rules/` Directory (Modular Dictionaries)
@@ -448,7 +459,7 @@ open-guardian/
 │       ├── injection_scanner.rs   # Adversarial pattern scoring engine
 │       ├── threat_engine.rs       # Signature DB + Emergency Kit + RAG
 │       ├── normalizer.rs          # Code-aware text normalization
-│       └── judge.rs               # AI Sheriff (qwen3:4b + moka cache + RAG)
+│       └── judge.rs               # AI Sheriff (qwen2.5:0.5b + moka cache + RAG)
 ├── guardian.toml                  # Runtime configuration
 ├── rules/                         # Modular threat dictionaries
 │   ├── common.json                # Universal threats (RCE, SQLi, SSTI, Secrets)

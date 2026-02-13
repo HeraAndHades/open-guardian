@@ -8,6 +8,7 @@ use crate::config::JudgeConfig;
 use crate::security::threat_engine::ThreatMatch;
 use crate::banner;
 use serde_json::json;
+use tokio::time::timeout as tokio_timeout;
 
 pub struct Judge {
     config: JudgeConfig,
@@ -166,8 +167,16 @@ impl Judge {
             ]
         });
 
-        // ── LLM call ──
-        match self.client.post(&endpoint).json(&payload).send().await {
+        // ── LLM call with timeout guard ──
+        let judge_timeout = Duration::from_secs(10);
+        let send_future = self.client.post(&endpoint).json(&payload).send();
+        
+        match tokio_timeout(judge_timeout, send_future).await {
+            Err(_elapsed) => {
+                banner::print_warning("AI Judge timed out (10s). Bypassing per fail_open policy.");
+                return self.config.fail_open.unwrap_or(true);
+            }
+            Ok(result) => match result {
             Ok(resp) => {
                 let status = resp.status();
                 if let Ok(json) = resp.json::<serde_json::Value>().await {
@@ -222,6 +231,7 @@ impl Judge {
                 banner::print_warning(&format!("AI Judge communication error: {}. Bypassing check.", e));
                 self.config.fail_open.unwrap_or(true)
             }
+            } // end Ok(result)
         }
     }
 }

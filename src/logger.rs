@@ -8,8 +8,8 @@ pub fn init_logger() {
         std::env::current_dir().unwrap_or_default()
     };
 
-    let log_file = "guardian_debug.log";
-    let file_appender = rolling::never(base_dir, log_file);
+    let log_dir = base_dir.join("logs");
+    let file_appender = rolling::daily(log_dir, "open-guardian.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     // Filter from environment or default to INFO
@@ -26,7 +26,7 @@ pub fn init_logger() {
             .with_target(true))
         .init();
 
-    tracing::info!("Open-GuardIAn Logger Initialized. Logs directed to file.");
+    tracing::info!("Open-GuardIAn Logger v0.1.1 Initialized. Rolling daily logs in logs/. Non-blocking I/O enabled.");
     
     // leaked guard is intentional to keep logging alive for the process duration
     std::mem::forget(_guard);

@@ -73,8 +73,8 @@ fn hardcoded_signatures() -> Vec<ThreatSignature> {
         // These are legitimate agent operations. AI Judge decides.
         // If AI Judge is OFF → LOG WARN + ALLOW.
         // ═══════════════════════════════════════════════════
-        ThreatSignature { id: "HC-RCE-010".into(), pattern: "rm -rf".into(), category: "SHELL_CMD".into(), severity: 80, is_regex: false },
-        ThreatSignature { id: "HC-RCE-011".into(), pattern: "rm -r /".into(), category: "SHELL_CMD".into(), severity: 80, is_regex: false },
+        ThreatSignature { id: "HC-RCE-010".into(), pattern: "rm -rf".into(), category: "RCE".into(), severity: 100, is_regex: false },
+        ThreatSignature { id: "HC-RCE-011".into(), pattern: "rm -r /".into(), category: "RCE".into(), severity: 100, is_regex: false },
         ThreatSignature { id: "HC-RCE-012".into(), pattern: "curl | bash".into(), category: "SHELL_CMD".into(), severity: 80, is_regex: false },
         ThreatSignature { id: "HC-CTX-001".into(), pattern: "wget".into(), category: "Network".into(), severity: 70, is_regex: false },
         ThreatSignature { id: "HC-CTX-002".into(), pattern: "curl".into(), category: "Network".into(), severity: 70, is_regex: false },
@@ -282,13 +282,12 @@ mod tests {
     }
 
     #[test]
-    fn test_rm_rf_tagged_not_blocked() {
+    fn test_rm_rf_blocked() {
         let engine = test_engine();
-        // rm -rf is Sev 80 → NOT blocked, but tagged
+        // rm -rf is Sev 100 → BLOCKED instantly (Critical RCE)
         let result = engine.check("Execute rm -rf /tmp/cache now");
-        assert!(!result.blocked, "Should NOT block rm -rf (Sev 80 — Agent-First)");
-        assert!(!result.risk_tags.is_empty(), "Should have risk tags");
-        assert!(result.risk_tags.contains(&"SHELL_CMD".to_string()));
+        assert!(result.blocked, "Should block rm -rf (Sev 100 — Critical RCE)");
+        assert_eq!(result.max_severity, 100);
     }
 
     #[test]

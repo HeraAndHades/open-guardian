@@ -403,7 +403,7 @@ async fn handler(
                 let has_risks = !scan_result.risk_tags.is_empty();
                 let judge_enabled = state.judge.is_enabled();
 
-                if has_risks || judge_enabled {
+                if has_risks && judge_enabled {
                     let judge_start = std::time::Instant::now();
                     
                     // RAG Retrieval for context (even if not strictly blocked, we want similarity)

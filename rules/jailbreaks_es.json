@@ -107,6 +107,24 @@
             "pattern": "phishing",
             "category": "MaliciousTopic",
             "severity": 70
+        },
+        {
+            "id": "SE-ES-001",
+            "pattern": "fingiendo ser",
+            "category": "SocialEngineering",
+            "severity": 80
+        },
+        {
+            "id": "SE-ES-002",
+            "pattern": "cambien sus contrasenas",
+            "category": "SocialEngineering",
+            "severity": 80
+        },
+        {
+            "id": "SE-ES-003",
+            "pattern": "hacerse pasar por",
+            "category": "SocialEngineering",
+            "severity": 80
         }
     ]
 }

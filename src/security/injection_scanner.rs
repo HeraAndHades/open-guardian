@@ -85,6 +85,22 @@ pub fn analyze_injection(content: &str) -> SecurityScore {
         ("database connection string", 40),
     ];
 
+    // ── Social Engineering / Phishing patterns ──
+    let social_eng_patterns: [(&str, u32); 10] = [
+        // Spanish
+        ("fingiendo ser", 35),              // pretending to be (impersonation)
+        ("hacerse pasar por", 35),           // impersonating
+        ("suplantacion", 35),               // impersonation/spoofing
+        ("cambien sus contrasenas", 25),    // change your passwords (normalized ñ→n)
+        ("cambiar contrasena", 25),         // change password
+        // English
+        ("impersonating", 35),
+        ("change your password", 25),
+        ("verify your credentials", 25),
+        ("click this link", 20),
+        ("phishing", 40),
+    ];
+
     for (pattern, weight) in jailbreak_patterns {
         if normalized.contains(pattern) {
             score = score.saturating_add(weight);
@@ -113,6 +129,12 @@ pub fn analyze_injection(content: &str) -> SecurityScore {
         if normalized.contains(pattern) {
             score = score.saturating_add(weight);
             if category == AttackCategory::None { category = AttackCategory::DataExfiltration; }
+        }
+    }
+    for (pattern, weight) in social_eng_patterns {
+        if normalized.contains(pattern) {
+            score = score.saturating_add(weight);
+            if category == AttackCategory::None { category = AttackCategory::Jailbreak; }
         }
     }
 

@@ -13,7 +13,7 @@ pub fn print_banner() {
     "#;
 
     println!("{}", banner.bright_cyan().bold());
-    println!("   {}", "Stopping smart Agents from doing stupid things.".bright_white().italic());
+    println!("   {}", "Stopping Smart Agents from doing stupid things.".bright_white().italic());
     println!("   {}", "Version 0.1.0 (Public Beta) — Licensed under Apache-2.0".bright_black());
     println!();
     println!("   {}", "Built with ❤️ by CyberIndustree & The Open Source Community".blue());

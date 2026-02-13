@@ -76,7 +76,7 @@ allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
 [judge]
 ai_judge_enabled = true
 ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
-ai_judge_model = "qwen3:4b"
+ai_judge_model = "qwen2.5:0.5b"
 
 # PERFORMANCE TUNING
 # Cache TTL: Avoid redundant inference for identical prompts (Seconds)
@@ -109,3 +109,4 @@ fail_open = true
 
 # --- Local ---
 "qwen3:4b" = { url = "http://127.0.0.1:11434/v1" }
+"qwen2.5:0.5b" = { url = "http://127.0.0.1:11434/v1" }

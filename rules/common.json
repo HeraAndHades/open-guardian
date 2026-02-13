@@ -132,8 +132,8 @@
         {
             "id": "CTX-001",
             "pattern": "rm -rf",
-            "category": "SHELL_CMD",
-            "severity": 80
+            "category": "RCE",
+            "severity": 100
         },
         {
             "id": "CTX-002",
