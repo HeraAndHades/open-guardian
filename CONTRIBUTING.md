@@ -20,13 +20,15 @@ Before contributing, understand our core principles:
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
-- (Optional) [Ollama](https://ollama.ai/) with `qwen3:4b` for AI Judge testing
+- (Optional) [Ollama](https://ollama.ai/) running locally for AI Judge testing.
+  - Recommended for testing: `ollama pull qwen2.5:0.5b`
+  - Note: You can run tests without Ollama, but integration tests for Layer 3 will be skipped or mocked.
 
 ### Development Setup
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/open-guardian.git
+git clone https://github.com/AnthonySmith96/open-guardian.git
 cd open-guardian
 
 # Build in debug mode (faster compile)

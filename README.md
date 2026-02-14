@@ -106,24 +106,26 @@ phone_redaction = true
 
 > **Note**: Layer 2 uses advanced normalization-aware heuristics. Unlike heavier BERT models (like PromptGuard), this layer is deterministic, runs in **under 20 microseconds (<20µs)**, and ensures that legitimate traffic passes through with **zero perceptible overhead**.
 
-#### Layer 3: AI Judge — "The Sheriff" (Optional GPU — qwen3:4b)
+#### Layer 3: AI Judge — "The Sheriff" (Optional but Recommended)
 
+> [!NOTE]
+> **This layer is OPTIONAL.** Open-Guardian provides enterprise-grade security (Layer 1 & 2) even without the AI Judge.
 
 - **🤠 Contextual Intent Analysis** — Uses a local LLM (via Ollama) to decide whether flagged commands are legitimate agent operations or actual attacks
 - **Agent-First Philosophy**: `rm -rf /tmp/cache` for cleanup? **SAFE**. `rm -rf /` without context? **UNSAFE**.
+- **Model Agnostic**: Defaults to `qwen2.5:0.5b` (fast/light), but **can use ANY model** available in your Ollama library (e.g., `llama3`, `mistral`, `gemma`).
 - **RAG-Powered**: The Judge receives similar threat patterns as precedent in its system prompt
 - **Performance-Optimized**:
   - `moka` semantic cache — repeat prompts resolved in <1ms
   - `tokio::Semaphore` concurrency control — protects host resources
   - Configurable **fail-open** or **fail-closed** when the AI is unavailable
-- **Model**: `qwen2.5:0.5b` (primary) or `qwen2.5:3b` (fallback for lower-resource environments)
+- **Disable Strategy**: To run heuristics-only, set `ai_judge_enabled = false` in `guardian.toml`.
 
 ### 🛣️ Smart Multi-Provider Router
 
-- Route requests to different LLM providers based on the `model` field
-- Automatic **credential injection** from environment variables
-- Model alias rewriting (e.g., `"llama-4"` → `"meta-llama/llama-4-maverick-17b-128e-instruct"`)
-- Zero-config fallback to default upstream
+- **Unified Endpoint**: One URL (`http://localhost:8080/v1`) for all your AI needs.
+- **Cost & Latency Optimization**: Route bulk tasks to cheaper/faster providers (Groq) and complex reasoning to capable models (GPT-4), controlled entirely by config.
+- **Vendor Lock-in Protection**: Swap "gpt-4" to point to "claude-3-opus" in the config without changing a single line of application code.
 
 ### 📐 Policy Manager — "The Governor"
 
@@ -135,6 +137,74 @@ Four enforcement modes for every security check:
 | `audit` | Log `WARN` + inject `X-Guardian-Risk: High` header + forward |
 | `redact` | Sanitize sensitive data with anonymizer tokens and forward |
 | `allow` | No enforcement (not recommended for production) |
+
+---
+
+## 🌐 Smart Routing & Gateway Mode
+
+Open-Guardian is not just a firewall; it is a **Multi-Provider API Gateway**. You can configure a single instance to route traffic to dozens of different providers based on the `model` field in your request.
+
+### 🔀 Dynamic Routing
+"Request `gpt-4`? Send to OpenAI."
+"Request `llama-3`? Send to Groq for speed."
+"Request `mistral`? Send to a local vLLM instance."
+
+All of this happens **transparently** to your client application.
+
+### 🔑 Zero-Trust Key Injection
+Client applications **DO NOT** need to handle provider API keys.
+1. You set keys in your server's `.env` (e.g., `OPENAI_API_KEY`, `GROQ_API_KEY`).
+2. Open-Guardian injects the correct key into the upstream request header based on the destination.
+3. This ensures **keys never leak** to client-side agents or logs.
+
+### 🏷️ Model Aliasing
+You can define custom model names (aliases) that map to specific provider versions. This allows you to swap underlying models without changing application code.
+
+**Configuration Example (`guardian.toml`):**
+
+```toml
+[routes]
+# 1. Alias "fast-model" to Llama 3 on Groq
+"fast-model" = { url = "https://api.groq.com/openai", model = "llama3-70b-8192", key_env = "GROQ_API_KEY" }
+
+# 2. Standard GPT-4o routing
+"gpt-4o" = { url = "https://api.openai.com/v1", key_env = "OPENAI_API_KEY" }
+
+# 3. Secure Local Fallback
+"local-judge" = { url = "http://127.0.0.1:11434/v1" }
+```
+
+**Client Usage:**
+```json
+// The client just asks for "fast-model"
+POST /v1/chat/completions
+{
+  "model": "fast-model",
+  "messages": [...]
+}
+// Guardian routes this to Groq with the GROQ_API_KEY automatically.
+```
+
+### 🔄 Drop-in Replacement Example
+
+You don't need to change your code logic—just point the `base_url` to Guardian.
+
+```python
+# Python (OpenAI SDK) Example
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8080/v1",  # Point to Guardian
+    api_key="sk-dummy"                    # Guardian injects the real key!
+)
+
+# Route to Groq automatically by using the alias defined in guardian.toml
+response = client.chat.completions.create(
+    model="fast-model",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+# Guardian routes this to Groq, injects the key, and anonymizes the prompt.
+```
 
 ### 📝 Forensic Audit Logging
 
@@ -155,126 +225,83 @@ Four enforcement modes for every security check:
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart & Installation
 
-### 📦 Installation (No Rust Required)
+Open-Guardian can be run as a **standalone binary** (no installation required) or installed as a **system service** (daemon).
 
-Don't want to compile? Download the latest pre-built binaries from the [Releases Page](https://github.com/your-username/open-guardian/releases).
+### Option A: 📦 Pre-built Binaries (No Rust Required)
 
-| Platform | Arch | Binary |
-|----------|------|--------|
-| 🐧 Linux | x64 | `open-guardian-linux-amd64.tar.gz` |
-| 🍎 macOS | Apple Silicon | `open-guardian-macos-arm64.tar.gz` |
-| 🍎 macOS | Intel | `open-guardian-macos-amd64.tar.gz` |
-| 🪟 Windows | x64 | `open-guardian-windows-amd64.zip` |
+**Ideal for**: Production deployment, DevOps, non-Rust developers.
 
-#### Setup:
+1. **Download** the latest release for your OS from the [Releases Page](https://github.com/AnthonySmith96/open-guardian/releases).
+2. **Unzip** the archive.
+3. **Verify** you have the following **REQUIRED** files in the same directory:
+    - `open-guardian` (The executable)
+    - `guardian.toml` (Configuration file)
+    - `.env` (API Keys)
+    - `rules/` (Directory containing `common.json`, `jailbreaks_en.json`, etc.) ⚠️ **CRITICAL**: The heuristic engine requires this folder to detect threats.
 
-1. **Unzip** the file.
-2. **Create a `.env` file** next to the binary with your API keys.
-3. **Run** the binary:
-   - **Linux/Mac**: `./open-guardian start`
-   - **Windows**: `.\open-guardian.exe start`
+#### Run (Interactive Mode):
+```bash
+# Linux/Mac
+./open-guardian start
 
-### 🛠️ Compiling from Source
+# Windows
+.\open-guardian.exe start
+```
+
+### Option B: 🛠️ Compiling from Source
+
+**Ideal for**: Rust developers, contributors.
 
 ```bash
-git clone https://github.com/your-org/open-guardian.git
+git clone https://github.com/AnthonySmith96/open-guardian.git
 cd open-guardian
+# Creates a release binary in ./target/release/
 cargo build --release
 ```
 
-### 2. Configure
+---
 
-Create a `.env` file with your API keys:
+## 🏃 Usage & Execution Modes
 
-```env
-GROQ_API_KEY=gsk_your_key_here
-OPENAI_API_KEY=sk-your_key_here
-```
+### 1. Interactive Mode (CLI)
 
-Edit `guardian.toml` to your needs (see [Configuration](#%EF%B8%8F-configuration) below), or run with the secure defaults.
-
-### 3. (Optional) Pull the AI Judge Model
+Run the proxy in your terminal foreground. Useful for testing and debugging.
 
 ```bash
-ollama pull qwen2.5:0.5b
+# Standard Start (uses guardian.toml config)
+./open-guardian start
+
+# Verbose Logging (Debug mode)
+./open-guardian start --verbose
+
+# Local-Only Mode (Forces all upstream traffic to localhost:11434)
+./open-guardian start --local
 ```
 
-### 4. Run the Shield
+### 2. Service Mode (Daemon) 🤖
 
-```bash
-# Standard mode
-./target/release/open-guardian start
+Install Open-Guardian as a background service that auto-starts on boot and self-heals on failure.
 
-# With verbose debug output
-./target/release/open-guardian start --verbose
+**Prerequisite**: Ensure `open-guardian`, `guardian.toml`, `.env`, and `rules/` are in your desired install location BEFORE installing the service.
 
-# Local-only mode (routes all traffic to Ollama)
-./target/release/open-guardian start --local
-```
-
-### 5. Point Your App
-
-Replace your LLM base URL with Open-GuardIAn:
-
-```python
-# Before
-client = OpenAI(base_url="https://api.groq.com/openai/v1")
-
-# After — all requests are now protected
-client = OpenAI(base_url="http://localhost:8080/v1")
-```
-
-That's it. **Zero code changes** — Open-GuardIAn is API-compatible with OpenAI, Groq, Ollama, and any provider using the `/v1/chat/completions` standard.
-
-### 🤖 Production Deployment (Run as Service)
-
-Open-Guardian includes a built-in service manager that installs it as a **native system daemon** (Systemd on Linux, Launchd on macOS, Windows Service on Windows).
-
-| Feature | Detail |
-|---------|--------|
-| **Auto-Start** | Launches automatically on system boot. |
-| **Self-Healing** | Automatically restarts if the process crashes or is killed (`Restart=on-failure` on Linux, `sc failure` on Windows). |
-
-> [!IMPORTANT]
-> **Before installing the service**, ensure `guardian.toml` and `.env` are placed in the **same directory** as the `open-guardian` binary. The service locates its configuration relative to the executable path.
-
-#### 🪟 Windows (PowerShell as Administrator)
-
+#### 🪟 Windows (Administrator PowerShell)
 ```powershell
-# 1. Install & Register (Sets up Auto-Recovery via sc.exe)
 .\open-guardian.exe service install
-
-# 2. Start the Service
 .\open-guardian.exe service start
-
-# 3. Check Health
 .\open-guardian.exe service status
 ```
 
-#### 🐧 Linux / 🍎 macOS (Terminal with Sudo)
-
+#### 🐧 Linux / 🍎 macOS (Sudo)
 ```bash
-# 1. Install (Creates Systemd/Launchd entry with restart policy)
 sudo ./open-guardian service install
-
-# 2. Start Background Daemon
 sudo ./open-guardian service start
-
-# 3. Verify Status
 sudo ./open-guardian service status
 ```
 
-#### 🗑️ Uninstalling
-
-To remove the service cleanly:
-
-```bash
-# Stop and remove (use sudo on Linux/Mac, Administrator on Windows)
-./open-guardian service stop
-./open-guardian service uninstall
-```
+> [!NOTE]
+> **Uninstall**: `open-guardian service stop` then `open-guardian service uninstall`
 
 **Logs:** On Linux, use `journalctl -u open-guardian`. On Windows, check the Event Viewer or the `logs/` directory.
 
@@ -282,40 +309,34 @@ To remove the service cleanly:
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     OPEN-GUARDIAN PROXY                         │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │         LAYER 1: DLP ANONYMIZER (Always On)               │  │
-│  │  Email → <EMAIL>  |  sk-proj-... → <KEY>  |  SSN → <SSN> │  │
-│  │  Action: REDACT tokens  |  or  BLOCK (configurable)       │  │
-│  └───────────────────────────┬───────────────────────────────┘  │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │         LAYER 2: HEURISTIC ENGINE (CPU, <1ms)             │  │
-│  │  ┌──────────────┐  ┌──────────────────────────────────┐   │  │
-│  │  │  Injection   │→ │   Threat Engine (Signatures)     │   │  │
-│  │  │  Scanner     │  │  Sev 100: BLOCK  |  Sev 80: TAG  │   │  │
-│  │  └──────────────┘  └──────────────────────────────────┘   │  │
-│  └───────────────────────────┬───────────────────────────────┘  │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │     LAYER 3: AI JUDGE "The Sheriff" (Optional, GPU)       │  │
-│  │  ┌─────────────┐  ┌─────────┐  ┌──────────────────────┐  │  │
-│  │  │ RAG Context │→ │  Cache  │→ │  qwen3:4b (Ollama)   │  │  │
-│  │  │  Retrieval  │  │ (moka)  │  │  + Semaphore Control │  │  │
-│  │  └─────────────┘  └─────────┘  └──────────────────────┘  │  │
-│  └───────────────────────────┬───────────────────────────────┘  │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │            POLICY ENFORCEMENT                             │  │
-│  │       Block (403) │ Audit (Log+Forward) │ Allow           │  │
-│  └───────────────────────────┬───────────────────────────────┘  │
-│                              ▼                                   │
-│               Smart Router → Upstream LLM                        │
-└─────────────────────────────────────────────────────────────────┘
-```
+graph TD
+    User[App / Agent] -->|HTTP Request| Proxy[Open-GuardIAn Proxy :8080]
+    
+    subgraph "🛡️ Security Pipeline"
+        Proxy --> Layer1[Layer 1: DLP Anonymizer]
+        Layer1 -->|Redacted| Layer2[Layer 2: Heuristics <20µs]
+        
+        Layer2 -- "Sev 100 (Critical)" --> Block[⛔ BLOCK 403]
+        Layer2 -- "Sev 80 (Suspicious)" --> Layer3Check{AI Judge Enabled?}
+        Layer2 -- "Safe Traffic" --> Router[Smart Router]
+        
+        Layer3Check -- Yes --> Layer3[Layer 3: AI Sheriff qwen2.5]
+        Layer3Check -- No --> Audit[⚠️ LOG WARN]
+        
+        Layer3 -- "Malicious" --> Block
+        Layer3 -- "Safe Context" --> Router
+        Audit --> Router
+    end
+    
+    subgraph "☁️ Upstreams"
+        Router -->|gpt-4o| OpenAI[OpenAI API]
+        Router -->|llama-3| Groq[Groq Cloud]
+        Router -->|local| Ollama[Local LLM]
+    end
+    
+    style Block fill:#ff4d4d,stroke:#333,stroke-width:2px,color:white
+    style Router fill:#4d79ff,stroke:#333,stroke-width:2px,color:white
+    style Layer3 fill:#9933ff,stroke:#333,stroke-width:2px,color:white
 
 ### Pipeline Flow
 

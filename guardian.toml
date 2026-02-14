@@ -71,11 +71,13 @@ allowed_patterns = ["git pull", "git push", "kubectl get", "kubectl apply"]
 
 # ==========================================
 # THE SHERIFF (Local AI Governance Judge)
-# Model: qwen3:4b (primary) | qwen2.5:3b (fallback)
+# Optional: Set ai_judge_enabled = false to run in "Heuristics Only" mode (faster, less Contextual)
+# Model: Defaults to "qwen2.5:0.5b" but supports ANY model pulled in Ollama (e.g. "llama3", "mistral")
 # ==========================================
 [judge]
 ai_judge_enabled = true
 ai_judge_endpoint = "http://127.0.0.1:11434/api/chat"
+# You can use any model name from `ollama list` here:
 ai_judge_model = "qwen2.5:0.5b"
 
 # PERFORMANCE TUNING
