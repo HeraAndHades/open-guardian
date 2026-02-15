@@ -1,0 +1,38 @@
+name: Open-Guardian CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt -- --check
+
+      - name: Run Clippy (Linting)
+        run: cargo clippy -- -D warnings
+
+      - name: Run Tests
+        # We start Ollama/Simulate it if needed, or rely on unit tests that mock it.
+        # Since Layer 3 tests might need Ollama, we might see failures if not handled.
+        # For now, we run standard tests.
+        run: cargo test --verbose
