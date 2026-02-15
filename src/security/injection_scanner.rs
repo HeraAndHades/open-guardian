@@ -1,4 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum AttackCategory {
     Jailbreak,
     SystemPromptExtraction,

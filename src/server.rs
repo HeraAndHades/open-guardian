@@ -19,6 +19,9 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+type RateLimiterMap = std::collections::HashMap<String, (u32, std::time::Instant)>;
+type SharedRateLimiter = std::sync::Arc<tokio::sync::Mutex<RateLimiterMap>>;
+
 pub struct ServerConfig {
     pub port: u16,
     pub default_upstream: String,
@@ -42,7 +45,7 @@ struct AppState {
     routes: HashMap<String, RouteConfig>,
     audit_log_path: Option<String>,
     block_threshold: u32,
-    rate_limiter: Option<Arc<tokio::sync::Mutex<HashMap<String, (u32, std::time::Instant)>>>>,
+    rate_limiter: Option<SharedRateLimiter>,
     rate_limit_requests_per_minute: u32,
     verbose: bool,
     // Policy settings
