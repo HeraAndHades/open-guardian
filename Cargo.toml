@@ -12,7 +12,7 @@ categories = ["network-programming", "science::robotics"]
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
 axum = { version = "0.7", features = ["macros"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip", "brotli"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "gzip", "brotli"] }
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -37,6 +37,26 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 atty = "0.2"
 tokio-util = "0.7"
 unidecode = "0.3"
+
+# Security module dependencies (from Open-GuardIAn)
+# HMAC for rule file integrity
+hmac-sha256 = "1.1"
+sha2 = "0.10"
+hex = "0.4"
+
+# Rate limiting
+governor = "0.5"
+nonzero_ext = "0.3"
+
+# Unicode normalization
+unicode-normalization = "0.1"
+
+# Recursive decoding
+html-escape = "0.2"
+urlencoding = "2.1"
+
+# Unix permissions check
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.7"

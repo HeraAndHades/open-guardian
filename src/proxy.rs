@@ -32,9 +32,9 @@ impl ProxyClient {
         let base_url = upstream_url;
         let mut target_path = path;
 
-        if (base_url.ends_with("/v1") || base_url.ends_with("/v1/"))
-            && target_path.starts_with("/v1")
-        {
+        if base_url.ends_with("/v1") && target_path.starts_with("/v1") {
+            target_path = &target_path[3..];
+        } else if base_url.ends_with("/v1/") && target_path.starts_with("/v1") {
             target_path = &target_path[3..];
         }
 
@@ -44,7 +44,7 @@ impl ProxyClient {
 
         if let Some(env_name) = api_key_env {
             if let Ok(key) = std::env::var(env_name) {
-                let clean_key = key.trim().replace(['\"', '\''], "");
+                let clean_key = key.trim().replace('\"', "").replace('\'', "");
 
                 // Security-safe log for validation
                 if clean_key.len() >= 8 {
@@ -84,11 +84,14 @@ impl ProxyClient {
                 && name_str != "accept-encoding"
                 && name_str != "authorization"
             {
-                if let (Ok(hn), Ok(hv)) = (
+                match (
                     name.as_str().parse::<reqwest::header::HeaderName>(),
                     reqwest::header::HeaderValue::from_bytes(value.as_bytes()),
                 ) {
-                    request_builder = request_builder.header(hn, hv);
+                    (Ok(hn), Ok(hv)) => {
+                        request_builder = request_builder.header(hn, hv);
+                    }
+                    _ => {}
                 }
             }
         }

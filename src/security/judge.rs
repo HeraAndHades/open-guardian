@@ -189,7 +189,7 @@ impl Judge {
         match tokio_timeout(judge_timeout, send_future).await {
             Err(_elapsed) => {
                 banner::print_warning("AI Judge timed out (10s). Bypassing per fail_open policy.");
-                self.config.fail_open.unwrap_or(true)
+                return self.config.fail_open.unwrap_or(true);
             }
             Ok(result) => {
                 match result {
