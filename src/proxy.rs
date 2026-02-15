@@ -1,9 +1,9 @@
+use crate::banner;
 use anyhow::{Context, Result};
+use axum::response::IntoResponse;
+use http::{HeaderMap, Method, StatusCode};
 use reqwest::Client;
 use std::time::Duration;
-use http::{Method, HeaderMap, StatusCode};
-use axum::response::IntoResponse;
-use crate::banner;
 
 #[derive(Clone)]
 pub struct ProxyClient {
@@ -16,10 +16,8 @@ impl ProxyClient {
             .timeout(Duration::from_secs(timeout_seconds))
             .build()
             .context("Failed to build reqwest client")?;
-        
-        Ok(Self {
-            client,
-        })
+
+        Ok(Self { client })
     }
 
     pub async fn forward_request(
@@ -35,19 +33,19 @@ impl ProxyClient {
         let mut target_path = path;
 
         if base_url.ends_with("/v1") && target_path.starts_with("/v1") {
-            target_path = &target_path[3..]; 
+            target_path = &target_path[3..];
         } else if base_url.ends_with("/v1/") && target_path.starts_with("/v1") {
             target_path = &target_path[3..];
         }
 
         let url = format!("{}{}", base_url, target_path);
-        
+
         let mut request_builder = self.client.request(method, &url).body(body);
 
         if let Some(env_name) = api_key_env {
             if let Ok(key) = std::env::var(env_name) {
                 let clean_key = key.trim().replace('\"', "").replace('\'', "");
-                
+
                 // Security-safe log for validation
                 if clean_key.len() >= 8 {
                     tracing::info!(
@@ -55,16 +53,21 @@ impl ProxyClient {
                         env_name,
                         clean_key.len(),
                         &clean_key[..4],
-                        &clean_key[clean_key.len()-4..]
+                        &clean_key[clean_key.len() - 4..]
                     );
                 } else {
-                    tracing::warn!("SEC: Injecting VERY SHORT key from {} (Length: {})", env_name, clean_key.len());
+                    tracing::warn!(
+                        "SEC: Injecting VERY SHORT key from {} (Length: {})",
+                        env_name,
+                        clean_key.len()
+                    );
                 }
 
                 match reqwest::header::HeaderValue::from_str(&format!("Bearer {}", clean_key)) {
                     Ok(hv) => {
-                        request_builder = request_builder.header(reqwest::header::AUTHORIZATION, hv);
-                    },
+                        request_builder =
+                            request_builder.header(reqwest::header::AUTHORIZATION, hv);
+                    }
                     Err(e) => {
                         banner::print_error(&format!("Critical Security Error: Invalid API Key format in {} ({}). Skipping injection.", env_name, e));
                     }
@@ -76,25 +79,30 @@ impl ProxyClient {
 
         for (name, value) in headers.iter() {
             let name_str = name.as_str().to_lowercase();
-            if name_str != "host" && name_str != "content-length" && name_str != "accept-encoding" && name_str != "authorization" {
-                match (name.as_str().parse::<reqwest::header::HeaderName>(), 
-                       reqwest::header::HeaderValue::from_bytes(value.as_bytes())) {
+            if name_str != "host"
+                && name_str != "content-length"
+                && name_str != "accept-encoding"
+                && name_str != "authorization"
+            {
+                match (
+                    name.as_str().parse::<reqwest::header::HeaderName>(),
+                    reqwest::header::HeaderValue::from_bytes(value.as_bytes()),
+                ) {
                     (Ok(hn), Ok(hv)) => {
                         request_builder = request_builder.header(hn, hv);
-                    },
-                    _ => {
                     }
+                    _ => {}
                 }
             }
         }
-        
+
         request_builder = request_builder.header(reqwest::header::ACCEPT_ENCODING, "gzip, br");
 
         let response = match request_builder.send().await {
             Ok(resp) => {
                 banner::print_success(&format!("Upstream responded: {}", resp.status()));
                 resp
-            },
+            }
             Err(e) => {
                 banner::print_error(&format!("Upstream request failed: {}", e));
                 let status = if e.is_timeout() {
@@ -108,7 +116,8 @@ impl ProxyClient {
                     "details": format!("{}", e)
                 });
 
-                let body_str = serde_json::to_string(&error_json).unwrap_or_else(|_| "{\"error\": \"upstream_error\"}".to_string());
+                let body_str = serde_json::to_string(&error_json)
+                    .unwrap_or_else(|_| "{\"error\": \"upstream_error\"}".to_string());
 
                 return Ok(axum::response::Response::builder()
                     .status(status)
@@ -118,28 +127,33 @@ impl ProxyClient {
             }
         };
 
-        let mut res_builder = axum::response::Response::builder()
-            .status(response.status().as_u16());
+        let mut res_builder =
+            axum::response::Response::builder().status(response.status().as_u16());
 
         for (name, value) in response.headers().iter() {
             let name_str = name.as_str().to_lowercase();
-            if name_str != "content-length" 
-               && name_str != "transfer-encoding" 
-               && name_str != "content-encoding"
-               && name_str != "connection"
-               && name_str != "keep-alive"
+            if name_str != "content-length"
+                && name_str != "transfer-encoding"
+                && name_str != "content-encoding"
+                && name_str != "connection"
+                && name_str != "keep-alive"
             {
                 res_builder = res_builder.header(name.as_str(), value.as_bytes());
             }
         }
 
-        let mut bytes = response.bytes().await.context("Failed to read upstream response body")?.to_vec();
-        
+        let mut bytes = response
+            .bytes()
+            .await
+            .context("Failed to read upstream response body")?
+            .to_vec();
+
         if bytes.last() != Some(&b'\n') {
             bytes.push(b'\n');
         }
 
-        Ok(res_builder.body(axum::body::Body::from(bytes))
+        Ok(res_builder
+            .body(axum::body::Body::from(bytes))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()))
     }
 }

@@ -1,7 +1,7 @@
 use unidecode::unidecode;
 
 /// Normalize input using a "Code-Aware" pipeline.
-/// 
+///
 /// Logic:
 /// 1. Lowercase
 /// 2. De-unicode/ascii-folding (remove accents)
@@ -15,11 +15,45 @@ pub fn normalize(input: &str) -> String {
 
     // Stage 3: Filter characters
     // Keep: Alphanumeric, Whitespace, and the Preserved Symbols
-    let filtered: String = ascii.chars().filter(|c| {
-        c.is_alphanumeric() 
-        || c.is_whitespace() 
-        || matches!(c, '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | ':' | '/' | '\\' | '<' | '>' | '=' | '+' | '-' | '*' | '&' | '|' | '^' | '%' | '$' | '@' | '#' | '!' | '?' | '"' | '\'' | '~')
-    }).collect();
+    let filtered: String = ascii
+        .chars()
+        .filter(|c| {
+            c.is_alphanumeric()
+                || c.is_whitespace()
+                || matches!(
+                    c,
+                    '{' | '}'
+                        | '('
+                        | ')'
+                        | '['
+                        | ']'
+                        | '.'
+                        | ','
+                        | ';'
+                        | ':'
+                        | '/'
+                        | '\\'
+                        | '<'
+                        | '>'
+                        | '='
+                        | '+'
+                        | '-'
+                        | '*'
+                        | '&'
+                        | '|'
+                        | '^'
+                        | '%'
+                        | '$'
+                        | '@'
+                        | '#'
+                        | '!'
+                        | '?'
+                        | '"'
+                        | '\''
+                        | '~'
+                )
+        })
+        .collect();
 
     // Stage 4: Collapse whitespace (Optional but good for matching)
     // The spec doesn't explicitly forbid this, and it helps with "rm  -rf".
@@ -61,7 +95,8 @@ mod tests {
     #[test]
     fn test_sql_syntax() {
         assert_eq!(normalize("SELECT * FROM users;"), "select * from users;");
-        assert_eq!(normalize("DROP TABLE 'users' --"), "drop table 'users' --"); // -- comment style
+        assert_eq!(normalize("DROP TABLE 'users' --"), "drop table 'users' --");
+        // -- comment style
     }
 
     #[test]

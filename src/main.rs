@@ -1,17 +1,17 @@
-mod banner;
-mod server;
-mod proxy;
-mod security;
 mod audit;
+mod banner;
 mod config;
 mod logger;
+mod proxy;
+mod security;
+mod server;
 
-use clap::{Parser, Subcommand};
 use crate::server::ServerConfig;
-use std::net::TcpStream;
-use std::time::Duration;
-use std::path::PathBuf;
+use clap::{Parser, Subcommand};
 use service_manager::*;
+use std::net::TcpStream;
+use std::path::PathBuf;
+use std::time::Duration;
 
 #[cfg(windows)]
 use windows_service::{
@@ -96,57 +96,74 @@ fn handle_service_command(action: ServiceAction) -> anyhow::Result<()> {
         ServiceAction::Install => {
             let exe_path = std::env::current_exe()?;
             banner::print_step(&format!("Installing service {}...", label));
-            
-            manager.install(ServiceInstallCtx {
-                label: label.clone(),
-                program: exe_path,
-                args: vec!["start".into()],
-                contents: None,
-                username: None,
-                working_directory: None,
-                environment: None,
-                autostart: true,
-                restart_policy: if cfg!(windows) {
-                    RestartPolicy::OnFailure { delay_secs: Some(60) }
-                } else {
-                    RestartPolicy::Always { delay_secs: Some(5) }
-                },
-            }).map_err(|e| anyhow::anyhow!("Installation failed: {}", e))?;
+
+            manager
+                .install(ServiceInstallCtx {
+                    label: label.clone(),
+                    program: exe_path,
+                    args: vec!["start".into()],
+                    contents: None,
+                    username: None,
+                    working_directory: None,
+                    environment: None,
+                    autostart: true,
+                    restart_policy: if cfg!(windows) {
+                        RestartPolicy::OnFailure {
+                            delay_secs: Some(60),
+                        }
+                    } else {
+                        RestartPolicy::Always {
+                            delay_secs: Some(5),
+                        }
+                    },
+                })
+                .map_err(|e| anyhow::anyhow!("Installation failed: {}", e))?;
 
             #[cfg(windows)]
             {
                 // service-manager doesn't support sc failure, so we run it manually
                 let status = std::process::Command::new("sc.exe")
-                    .args(["failure", "com.openguardian.shield", "actions=restart/60000/restart/60000/restart/60000", "reset=86400"])
+                    .args([
+                        "failure",
+                        "com.openguardian.shield",
+                        "actions=restart/60000/restart/60000/restart/60000",
+                        "reset=86400",
+                    ])
                     .status();
-                
+
                 match status {
                     Ok(s) if s.success() => banner::print_success("Windows: Auto-recovery policy (60s) applied via sc failure."),
                     _ => banner::print_warning("Windows: Failed to apply sc failure policy. You may need to run it manually as Administrator."),
                 }
             }
-            
+
             banner::print_success("Service installed successfully.");
         }
         ServiceAction::Uninstall => {
             banner::print_step(&format!("Uninstalling service {}...", label));
-            manager.uninstall(ServiceUninstallCtx {
-                label: label.clone(),
-            }).map_err(|e| anyhow::anyhow!("Uninstallation failed: {}", e))?;
+            manager
+                .uninstall(ServiceUninstallCtx {
+                    label: label.clone(),
+                })
+                .map_err(|e| anyhow::anyhow!("Uninstallation failed: {}", e))?;
             banner::print_success("Service uninstalled successfully.");
         }
         ServiceAction::Start => {
             banner::print_step(&format!("Starting service {}...", label));
-            manager.start(ServiceStartCtx {
-                label: label.clone(),
-            }).map_err(|e| anyhow::anyhow!("Failed to start service: {}", e))?;
+            manager
+                .start(ServiceStartCtx {
+                    label: label.clone(),
+                })
+                .map_err(|e| anyhow::anyhow!("Failed to start service: {}", e))?;
             banner::print_success("Service started.");
         }
         ServiceAction::Stop => {
             banner::print_step(&format!("Stopping service {}...", label));
-            manager.stop(ServiceStopCtx {
-                label: label.clone(),
-            }).map_err(|e| anyhow::anyhow!("Failed to stop service: {}", e))?;
+            manager
+                .stop(ServiceStopCtx {
+                    label: label.clone(),
+                })
+                .map_err(|e| anyhow::anyhow!("Failed to stop service: {}", e))?;
             banner::print_success("Service stopped.");
         }
     }
@@ -172,51 +189,63 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
         }
     };
 
-    let status_handle = service_control_handler::register("com.openguardian.shield", event_handler).unwrap();
+    let status_handle =
+        service_control_handler::register("com.openguardian.shield", event_handler).unwrap();
 
-    status_handle.set_service_status(ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::Running,
-        controls_accepted: ServiceControlAccept::STOP,
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-        process_id: None,
-    }).unwrap();
+    status_handle
+        .set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::Running,
+            controls_accepted: ServiceControlAccept::STOP,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        })
+        .unwrap();
 
     // Start the actual logic
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        if let Err(e) = run_app(Commands::Start {
-            port: None,
-            upstream: None,
-            local: false,
-            verbose: true,
-        }, shutdown_token).await {
+        if let Err(e) = run_app(
+            Commands::Start {
+                port: None,
+                upstream: None,
+                local: false,
+                verbose: true,
+            },
+            shutdown_token,
+        )
+        .await
+        {
             tracing::error!("Service failure: {}", e);
         }
     });
 
     // Tell SCM we are stopping
-    status_handle.set_service_status(ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::StopPending,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 1,
-        wait_hint: Duration::from_secs(5),
-        process_id: None,
-    }).unwrap();
+    status_handle
+        .set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::StopPending,
+            controls_accepted: ServiceControlAccept::empty(),
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 1,
+            wait_hint: Duration::from_secs(5),
+            process_id: None,
+        })
+        .unwrap();
 
-    status_handle.set_service_status(ServiceStatus {
-        service_type: ServiceType::OWN_PROCESS,
-        current_state: ServiceState::Stopped,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-        process_id: None,
-    }).unwrap();
+    status_handle
+        .set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::Stopped,
+            controls_accepted: ServiceControlAccept::empty(),
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        })
+        .unwrap();
 }
 
 #[tokio::main]
@@ -226,7 +255,7 @@ async fn main() -> anyhow::Result<()> {
     let _ = colored::control::set_virtual_terminal(true);
 
     logger::init_logger();
-    
+
     let env_path = get_env_path();
     if env_path.exists() {
         match dotenvy::from_path(&env_path) {
@@ -236,7 +265,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::info!("No .env found at: {}", env_path.display());
     }
-    
+
     // Check if we are being run as a Windows service
     #[cfg(windows)]
     {
@@ -249,7 +278,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
     banner::print_banner();
-    
+
     // Create a cancellation token for local runs (e.g. Ctrl+C)
     let shutdown_token = tokio_util::sync::CancellationToken::new();
     let t = shutdown_token.clone();
@@ -262,18 +291,28 @@ async fn main() -> anyhow::Result<()> {
     run_app(cli.command, shutdown_token).await
 }
 
-async fn run_app(command: Commands, shutdown_token: tokio_util::sync::CancellationToken) -> anyhow::Result<()> {
+async fn run_app(
+    command: Commands,
+    shutdown_token: tokio_util::sync::CancellationToken,
+) -> anyhow::Result<()> {
     match command {
-        Commands::Start { port, upstream, local, verbose } => {
+        Commands::Start {
+            port,
+            upstream,
+            local,
+            verbose,
+        } => {
             let file_config = config::load_config();
-            
+
             let upstream_url = if local {
                 let ollama_url = "http://127.0.0.1:11434/v1";
                 banner::print_step("Checking local Ollama status...");
                 if TcpStream::connect_timeout(
                     &"127.0.0.1:11434".parse().unwrap(),
-                    Duration::from_secs(1)
-                ).is_err() {
+                    Duration::from_secs(1),
+                )
+                .is_err()
+                {
                     banner::print_warning("Local AI (Ollama) not detected on port 11434.");
                 } else {
                     banner::print_success("Ollama detected.");
@@ -281,7 +320,10 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
                 ollama_url.to_string()
             } else {
                 upstream
-                    .or(file_config.server.as_ref().and_then(|s| s.default_upstream.clone()))
+                    .or(file_config
+                        .server
+                        .as_ref()
+                        .and_then(|s| s.default_upstream.clone()))
                     .unwrap_or_else(|| "https://api.openai.com/v1".to_string())
             };
 
@@ -289,19 +331,32 @@ async fn run_app(command: Commands, shutdown_token: tokio_util::sync::Cancellati
                 .or(file_config.server.as_ref().and_then(|s| s.port))
                 .unwrap_or(8080);
 
-            let timeout_seconds = 300; 
+            let timeout_seconds = 300;
 
             let routes = file_config.routes.clone().unwrap_or_default();
-            
+
             let judge_config = file_config.judge.clone().unwrap_or_default();
-            let audit_log_path = file_config.security.as_ref().and_then(|s| s.audit_log_path.clone());
-            let block_threshold = file_config.security.as_ref().and_then(|s| s.block_threshold);
-            let requests_per_minute = file_config.server.as_ref().and_then(|s| s.requests_per_minute);
-            let policies = file_config.security.as_ref()
+            let audit_log_path = file_config
+                .security
+                .as_ref()
+                .and_then(|s| s.audit_log_path.clone());
+            let block_threshold = file_config
+                .security
+                .as_ref()
+                .and_then(|s| s.block_threshold);
+            let requests_per_minute = file_config
+                .server
+                .as_ref()
+                .and_then(|s| s.requests_per_minute);
+            let policies = file_config
+                .security
+                .as_ref()
                 .and_then(|s| s.policies.clone())
                 .unwrap_or_default();
 
-            let dlp_config = file_config.security.as_ref()
+            let dlp_config = file_config
+                .security
+                .as_ref()
                 .and_then(|s| s.dlp.clone())
                 .unwrap_or_default();
 

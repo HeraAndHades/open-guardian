@@ -1,7 +1,7 @@
-use serde::Deserialize;
-use std::fs;
-use std::collections::HashMap;
 use crate::banner;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
 
 #[derive(Deserialize, Debug, Default)]
 pub struct Config {
@@ -45,7 +45,9 @@ pub struct DlpConfig {
 }
 
 impl DlpConfig {
-    fn default_true() -> bool { true }
+    fn default_true() -> bool {
+        true
+    }
 }
 
 impl Default for DlpConfig {
@@ -71,7 +73,9 @@ pub struct DictionarySource {
 }
 
 impl DictionarySource {
-    fn default_enabled() -> bool { true }
+    fn default_enabled() -> bool {
+        true
+    }
 }
 
 /// Policy configuration: "Secure by Default, Configurable by Choice."
@@ -95,13 +99,29 @@ pub struct PolicyConfig {
 }
 
 impl PolicyConfig {
-    fn default_action() -> String { "block".to_string() }
-    fn default_dlp_action() -> String { "redact".to_string() }
+    fn default_action() -> String {
+        "block".to_string()
+    }
+    fn default_dlp_action() -> String {
+        "redact".to_string()
+    }
     fn default_dictionaries() -> Vec<DictionarySource> {
         vec![
-            DictionarySource { id: "common".into(), path: "rules/common.json".into(), enabled: true },
-            DictionarySource { id: "jailbreaks_en".into(), path: "rules/jailbreaks_en.json".into(), enabled: true },
-            DictionarySource { id: "jailbreaks_es".into(), path: "rules/jailbreaks_es.json".into(), enabled: true },
+            DictionarySource {
+                id: "common".into(),
+                path: "rules/common.json".into(),
+                enabled: true,
+            },
+            DictionarySource {
+                id: "jailbreaks_en".into(),
+                path: "rules/jailbreaks_en.json".into(),
+                enabled: true,
+            },
+            DictionarySource {
+                id: "jailbreaks_es".into(),
+                path: "rules/jailbreaks_es.json".into(),
+                enabled: true,
+            },
         ]
     }
 }
@@ -157,7 +177,10 @@ pub struct RouteConfig {
 pub fn load_config() -> Config {
     // Determine the base directory: the directory containing the executable.
     let base_dir = if let Ok(exe_path) = std::env::current_exe() {
-        exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        exe_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
     } else {
         std::env::current_dir().unwrap_or_default()
     };
@@ -166,19 +189,22 @@ pub fn load_config() -> Config {
 
     if path.exists() {
         match fs::read_to_string(&path) {
-            Ok(content) => {
-                match toml::from_str::<Config>(&content) {
-                    Ok(config) => {
-                        banner::print_success(&format!("Loaded config from {}", path.display()));
-                        return config;
-                    }
-                    Err(e) => banner::print_error(&format!("Failed to parse {}: {}", path.display(), e)),
+            Ok(content) => match toml::from_str::<Config>(&content) {
+                Ok(config) => {
+                    banner::print_success(&format!("Loaded config from {}", path.display()));
+                    return config;
                 }
-            }
+                Err(e) => {
+                    banner::print_error(&format!("Failed to parse {}: {}", path.display(), e))
+                }
+            },
             Err(e) => banner::print_error(&format!("Failed to read {}: {}", path.display(), e)),
         }
     } else {
-        banner::print_warning(&format!("No guardian.toml found at {}. Using defaults.", path.display()));
+        banner::print_warning(&format!(
+            "No guardian.toml found at {}. Using defaults.",
+            path.display()
+        ));
     }
     Config::default()
 }
