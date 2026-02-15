@@ -1,8 +1,8 @@
-use regex::Regex;
-use serde::Deserialize;
+use super::normalizer;
 use crate::banner;
 use crate::config::DictionarySource;
-use super::normalizer;
+use regex::Regex;
+use serde::Deserialize;
 
 /// A single threat signature from the database.
 #[derive(Debug, Clone, Deserialize)]
@@ -18,8 +18,8 @@ pub struct ThreatSignature {
 /// Result of a threat scan.
 #[derive(Debug, Clone)]
 pub struct ScanResult {
-    pub blocked: bool,           // True ONLY if Severity >= 90
-    pub risk_tags: Vec<String>,  // e.g., "SHELL_CMD", "JAILBREAK_KEYWORD"
+    pub blocked: bool,          // True ONLY if Severity >= 90
+    pub risk_tags: Vec<String>, // e.g., "SHELL_CMD", "JAILBREAK_KEYWORD"
     pub max_severity: u8,
 }
 
@@ -53,37 +53,136 @@ fn hardcoded_signatures() -> Vec<ThreatSignature> {
         // ═══════════════════════════════════════════════════
         // SEVERITY 100 — HARD BLOCK (Infrastructure Exploits)
         // ═══════════════════════════════════════════════════
-        ThreatSignature { id: "HC-RCE-001".into(), pattern: "cat /etc/passwd".into(), category: "RCE".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-RCE-002".into(), pattern: "cat /etc/shadow".into(), category: "RCE".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-SQLI-001".into(), pattern: "drop table".into(), category: "SQLi".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-SSTI-001".into(), pattern: r"\{\{.*\}\}".into(), category: "SSTI".into(), severity: 100, is_regex: true },
-        ThreatSignature { id: "HC-RCE-003".into(), pattern: r"eval\(base64".into(), category: "RCE".into(), severity: 100, is_regex: true },
-        ThreatSignature { id: "HC-RCE-004".into(), pattern: "shutdown /s".into(), category: "RCE".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-RCE-005".into(), pattern: ":() :|:& ;:".into(), category: "ForkBomb".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-RCE-006".into(), pattern: "system.exit".into(), category: "CodeExec".into(), severity: 100, is_regex: false },
-
+        ThreatSignature {
+            id: "HC-RCE-001".into(),
+            pattern: "cat /etc/passwd".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-RCE-002".into(),
+            pattern: "cat /etc/shadow".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-SQLI-001".into(),
+            pattern: "drop table".into(),
+            category: "SQLi".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-SSTI-001".into(),
+            pattern: r"\{\{.*\}\}".into(),
+            category: "SSTI".into(),
+            severity: 100,
+            is_regex: true,
+        },
+        ThreatSignature {
+            id: "HC-RCE-003".into(),
+            pattern: r"eval\(base64".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: true,
+        },
+        ThreatSignature {
+            id: "HC-RCE-004".into(),
+            pattern: "shutdown /s".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-RCE-005".into(),
+            pattern: ":() :|:& ;:".into(),
+            category: "ForkBomb".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-RCE-006".into(),
+            pattern: "system.exit".into(),
+            category: "CodeExec".into(),
+            severity: 100,
+            is_regex: false,
+        },
         // ═══════════════════════════════════════════════════
         // SEVERITY 95 — HARD BLOCK (Jailbreaks)
         // ═══════════════════════════════════════════════════
-        ThreatSignature { id: "HC-JB-001".into(), pattern: "ignore previous instructions".into(), category: "Jailbreak".into(), severity: 95, is_regex: false },
-        ThreatSignature { id: "HC-JB-002".into(), pattern: "olvida tus reglas".into(), category: "Jailbreak".into(), severity: 95, is_regex: false },
-
+        ThreatSignature {
+            id: "HC-JB-001".into(),
+            pattern: "ignore previous instructions".into(),
+            category: "Jailbreak".into(),
+            severity: 95,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-JB-002".into(),
+            pattern: "olvida tus reglas".into(),
+            category: "Jailbreak".into(),
+            severity: 95,
+            is_regex: false,
+        },
         // ═══════════════════════════════════════════════════
         // SEVERITY 80 — TAG & AUDIT (Agent-First: Risky Tools)
         // These are legitimate agent operations. AI Judge decides.
         // If AI Judge is OFF → LOG WARN + ALLOW.
         // ═══════════════════════════════════════════════════
-        ThreatSignature { id: "HC-RCE-010".into(), pattern: "rm -rf".into(), category: "RCE".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-RCE-011".into(), pattern: "rm -r /".into(), category: "RCE".into(), severity: 100, is_regex: false },
-        ThreatSignature { id: "HC-RCE-012".into(), pattern: "curl | bash".into(), category: "SHELL_CMD".into(), severity: 80, is_regex: false },
-        ThreatSignature { id: "HC-CTX-001".into(), pattern: "wget".into(), category: "Network".into(), severity: 70, is_regex: false },
-        ThreatSignature { id: "HC-CTX-002".into(), pattern: "curl".into(), category: "Network".into(), severity: 70, is_regex: false },
-        ThreatSignature { id: "HC-CTX-003".into(), pattern: "chmod".into(), category: "SHELL_CMD".into(), severity: 70, is_regex: false },
-
+        ThreatSignature {
+            id: "HC-RCE-010".into(),
+            pattern: "rm -rf".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-RCE-011".into(),
+            pattern: "rm -r /".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-RCE-012".into(),
+            pattern: "curl | bash".into(),
+            category: "SHELL_CMD".into(),
+            severity: 80,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-CTX-001".into(),
+            pattern: "wget".into(),
+            category: "Network".into(),
+            severity: 70,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-CTX-002".into(),
+            pattern: "curl".into(),
+            category: "Network".into(),
+            severity: 70,
+            is_regex: false,
+        },
+        ThreatSignature {
+            id: "HC-CTX-003".into(),
+            pattern: "chmod".into(),
+            category: "SHELL_CMD".into(),
+            severity: 70,
+            is_regex: false,
+        },
         // ═══════════════════════════════════════════════════
         // SEVERITY 70 — CONTEXT SIGNALS (Tag for review)
         // ═══════════════════════════════════════════════════
-        ThreatSignature { id: "HC-JB-003".into(), pattern: "dan mode".into(), category: "Jailbreak".into(), severity: 80, is_regex: false },
+        ThreatSignature {
+            id: "HC-JB-003".into(),
+            pattern: "dan mode".into(),
+            category: "Jailbreak".into(),
+            severity: 80,
+            is_regex: false,
+        },
     ]
 }
 
@@ -96,7 +195,9 @@ pub struct ThreatEngine {
 impl ThreatEngine {
     pub fn new(dictionaries: &[DictionarySource], allowed_patterns: Vec<String>) -> Self {
         let base_dir = if let Ok(exe_path) = std::env::current_exe() {
-            exe_path.parent().map(|p| p.to_path_buf())
+            exe_path
+                .parent()
+                .map(|p| p.to_path_buf())
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
         } else {
             std::env::current_dir().unwrap_or_default()
@@ -107,33 +208,51 @@ impl ThreatEngine {
         for dict in dictionaries.iter().filter(|d| d.enabled) {
             let path = base_dir.join(&dict.path);
             match std::fs::read_to_string(&path) {
-                Ok(content) => {
-                    match serde_json::from_str::<ThreatDatabase>(&content) {
-                        Ok(db) => {
-                            banner::print_success(&format!("ThreatEngine: [{}] Loaded {} signatures", dict.id, db.signatures.len()));
-                            all_signatures.extend(db.signatures);
-                        }
-                        Err(e) => banner::print_warning(&format!("ThreatEngine: Failed to parse {}: {}", path.display(), e)),
+                Ok(content) => match serde_json::from_str::<ThreatDatabase>(&content) {
+                    Ok(db) => {
+                        banner::print_success(&format!(
+                            "ThreatEngine: [{}] Loaded {} signatures",
+                            dict.id,
+                            db.signatures.len()
+                        ));
+                        all_signatures.extend(db.signatures);
                     }
-                }
-                Err(_) => banner::print_warning(&format!("ThreatEngine: Dictionary not found at {}", path.display())),
+                    Err(e) => banner::print_warning(&format!(
+                        "ThreatEngine: Failed to parse {}: {}",
+                        path.display(),
+                        e
+                    )),
+                },
+                Err(_) => banner::print_warning(&format!(
+                    "ThreatEngine: Dictionary not found at {}",
+                    path.display()
+                )),
             }
         }
 
-        let compiled: Vec<Option<Regex>> = all_signatures.iter().map(|sig| {
-            if sig.is_regex {
-                Regex::new(&sig.pattern).ok()
-            } else {
-                None
-            }
-        }).collect();
+        let compiled: Vec<Option<Regex>> = all_signatures
+            .iter()
+            .map(|sig| {
+                if sig.is_regex {
+                    Regex::new(&sig.pattern).ok()
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        Self { signatures: all_signatures, compiled, allowed_patterns }
+        Self {
+            signatures: all_signatures,
+            compiled,
+            allowed_patterns,
+        }
     }
 
     fn is_whitelisted(&self, raw_input: &str) -> bool {
         let lower = raw_input.to_lowercase();
-        self.allowed_patterns.iter().any(|p| lower.contains(&p.to_lowercase()))
+        self.allowed_patterns
+            .iter()
+            .any(|p| lower.contains(&p.to_lowercase()))
     }
 
     /// Primary Scan Function.
@@ -144,7 +263,11 @@ impl ThreatEngine {
     /// - `max_severity` across all matches
     pub fn check(&self, raw_input: &str) -> ScanResult {
         if self.is_whitelisted(raw_input) {
-            return ScanResult { blocked: false, risk_tags: vec![], max_severity: 0 };
+            return ScanResult {
+                blocked: false,
+                risk_tags: vec![],
+                max_severity: 0,
+            };
         }
 
         let normalized = normalizer::normalize(raw_input);
@@ -224,10 +347,17 @@ impl ThreatEngine {
 
             // Word overlap for similar precedents
             let pattern_words: Vec<&str> = sig.pattern.split_whitespace().collect();
-            if pattern_words.is_empty() { continue; }
+            if pattern_words.is_empty() {
+                continue;
+            }
 
-            let matching_words = pattern_words.iter()
-                .filter(|pw| input_words.iter().any(|iw| iw.contains(*pw) || pw.contains(iw)))
+            let matching_words = pattern_words
+                .iter()
+                .filter(|pw| {
+                    input_words
+                        .iter()
+                        .any(|iw| iw.contains(*pw) || pw.contains(iw))
+                })
                 .count();
 
             let similarity = matching_words as f64 / pattern_words.len() as f64;
@@ -243,7 +373,11 @@ impl ThreatEngine {
             }
         }
 
-        matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        matches.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         matches
     }
 }
@@ -286,7 +420,10 @@ mod tests {
         let engine = test_engine();
         // rm -rf is Sev 100 → BLOCKED instantly (Critical RCE)
         let result = engine.check("Execute rm -rf /tmp/cache now");
-        assert!(result.blocked, "Should block rm -rf (Sev 100 — Critical RCE)");
+        assert!(
+            result.blocked,
+            "Should block rm -rf (Sev 100 — Critical RCE)"
+        );
         assert_eq!(result.max_severity, 100);
     }
 

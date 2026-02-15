@@ -1,6 +1,6 @@
+use crate::config::DlpConfig;
 use regex::Regex;
 use std::sync::OnceLock;
-use crate::config::DlpConfig;
 
 // ── PII Patterns ──
 static EMAIL_REGEX: OnceLock<Regex> = OnceLock::new();
@@ -53,7 +53,9 @@ fn cc_re() -> &'static Regex {
     CC_REGEX.get_or_init(|| Regex::new(r"\b(?:\d[ -]*?){13,16}\b").unwrap())
 }
 fn phone_re() -> &'static Regex {
-    PHONE_REGEX.get_or_init(|| Regex::new(r"\b(?:\+?\d{1,3}[-. ]?)?\(?\d{2,4}\)?[-. ]?\d{3,4}[-. ]?\d{3,4}\b").unwrap())
+    PHONE_REGEX.get_or_init(|| {
+        Regex::new(r"\b(?:\+?\d{1,3}[-. ]?)?\(?\d{2,4}\)?[-. ]?\d{3,4}[-. ]?\d{3,4}\b").unwrap()
+    })
 }
 fn ipv4_re() -> &'static Regex {
     IPV4_REGEX.get_or_init(|| Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b").unwrap())
@@ -88,7 +90,7 @@ fn bearer_re() -> &'static Regex {
 
 /// Check if content contains any PII or secrets, returning a violation if found.
 /// Used when DLP action is set to "block".
-/// 
+///
 /// Respects per-category toggles in DlpConfig if provided.
 pub fn check_for_violations(content: &str, config: Option<&DlpConfig>) -> Option<DlpViolation> {
     let secret_enabled = config.map(|c| c.secret_redaction).unwrap_or(true);
@@ -98,18 +100,63 @@ pub fn check_for_violations(content: &str, config: Option<&DlpConfig>) -> Option
 
     // Secrets first (more specific)
     if secret_enabled {
-        if openai_proj_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "OpenAI project key detected (sk-proj-)".into() }); }
-        if aws_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "AWS access key detected".into() }); }
-        if github_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "GitHub token detected (ghp_/gho_/ghs_/ghu_)".into() }); }
-        if openai_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "OpenAI API key detected (sk-)".into() }); }
-        if groq_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "Groq API key detected (gsk_)".into() }); }
-        if slack_re().is_match(content) { return Some(DlpViolation { category: "Secret".into(), description: "Slack token detected (xoxb-/xoxp-)".into() }); }
+        if openai_proj_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "OpenAI project key detected (sk-proj-)".into(),
+            });
+        }
+        if aws_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "AWS access key detected".into(),
+            });
+        }
+        if github_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "GitHub token detected (ghp_/gho_/ghs_/ghu_)".into(),
+            });
+        }
+        if openai_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "OpenAI API key detected (sk-)".into(),
+            });
+        }
+        if groq_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "Groq API key detected (gsk_)".into(),
+            });
+        }
+        if slack_re().is_match(content) {
+            return Some(DlpViolation {
+                category: "Secret".into(),
+                description: "Slack token detected (xoxb-/xoxp-)".into(),
+            });
+        }
     }
 
     // PII
-    if email_enabled && email_re().is_match(content) { return Some(DlpViolation { category: "PII".into(), description: "Email address detected".into() }); }
-    if ssn_enabled && ssn_re().is_match(content) { return Some(DlpViolation { category: "PII".into(), description: "Social Security Number detected".into() }); }
-    if cc_enabled && cc_re().is_match(content) { return Some(DlpViolation { category: "PII".into(), description: "Credit card number detected".into() }); }
+    if email_enabled && email_re().is_match(content) {
+        return Some(DlpViolation {
+            category: "PII".into(),
+            description: "Email address detected".into(),
+        });
+    }
+    if ssn_enabled && ssn_re().is_match(content) {
+        return Some(DlpViolation {
+            category: "PII".into(),
+            description: "Social Security Number detected".into(),
+        });
+    }
+    if cc_enabled && cc_re().is_match(content) {
+        return Some(DlpViolation {
+            category: "PII".into(),
+            description: "Credit card number detected".into(),
+        });
+    }
 
     None
 }
@@ -133,20 +180,34 @@ pub fn redact_pii(content: &str, config: Option<&DlpConfig>) -> String {
     if secret_enabled {
         redacted = openai_proj_re().replace_all(&redacted, "<KEY>").to_string();
         redacted = aws_re().replace_all(&redacted, "<AWS_KEY>").to_string();
-        redacted = github_re().replace_all(&redacted, "<GITHUB_TOKEN>").to_string();
+        redacted = github_re()
+            .replace_all(&redacted, "<GITHUB_TOKEN>")
+            .to_string();
         redacted = openai_re().replace_all(&redacted, "<KEY>").to_string();
         redacted = groq_re().replace_all(&redacted, "<KEY>").to_string();
-        redacted = slack_re().replace_all(&redacted, "<SLACK_TOKEN>").to_string();
+        redacted = slack_re()
+            .replace_all(&redacted, "<SLACK_TOKEN>")
+            .to_string();
         redacted = generic_re().replace_all(&redacted, "<SECRET>").to_string();
         redacted = bearer_re().replace_all(&redacted, "<BEARER>").to_string();
     }
 
     // PII
-    if ssn_enabled { redacted = ssn_re().replace_all(&redacted, "<SSN>").to_string(); }
-    if email_enabled { redacted = email_re().replace_all(&redacted, "<EMAIL>").to_string(); }
-    if cc_enabled { redacted = cc_re().replace_all(&redacted, "<CC>").to_string(); }
-    if phone_enabled { redacted = phone_re().replace_all(&redacted, "<PHONE>").to_string(); }
-    if ip_enabled { redacted = ipv4_re().replace_all(&redacted, "<IP>").to_string(); }
+    if ssn_enabled {
+        redacted = ssn_re().replace_all(&redacted, "<SSN>").to_string();
+    }
+    if email_enabled {
+        redacted = email_re().replace_all(&redacted, "<EMAIL>").to_string();
+    }
+    if cc_enabled {
+        redacted = cc_re().replace_all(&redacted, "<CC>").to_string();
+    }
+    if phone_enabled {
+        redacted = phone_re().replace_all(&redacted, "<PHONE>").to_string();
+    }
+    if ip_enabled {
+        redacted = ipv4_re().replace_all(&redacted, "<IP>").to_string();
+    }
 
     redacted
 }
