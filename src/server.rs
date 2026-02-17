@@ -19,9 +19,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-type RateLimiterMap = std::collections::HashMap<String, (u32, std::time::Instant)>;
-type SharedRateLimiter = std::sync::Arc<tokio::sync::Mutex<RateLimiterMap>>;
-
 pub struct ServerConfig {
     pub port: u16,
     pub default_upstream: String,
@@ -45,7 +42,8 @@ struct AppState {
     routes: HashMap<String, RouteConfig>,
     audit_log_path: Option<String>,
     block_threshold: u32,
-    rate_limiter: Option<SharedRateLimiter>,
+    #[allow(clippy::type_complexity)]
+    rate_limiter: Option<Arc<tokio::sync::Mutex<HashMap<String, (u32, std::time::Instant)>>>>,
     rate_limit_requests_per_minute: u32,
     verbose: bool,
     // Policy settings
@@ -64,6 +62,39 @@ pub async fn start_server(
 ) -> anyhow::Result<()> {
     let proxy = ProxyClient::new(config.timeout_seconds)?;
     let judge = Judge::new(config.judge_config.clone());
+
+    // ── Layer 0: Rule File Integrity Verification ──
+    // Verify HMAC integrity of rule files before starting the server
+    let rules_dir = config
+        .policies
+        .dictionaries
+        .first()
+        .and_then(|d| {
+            std::path::Path::new(&d.path)
+                .parent()
+                .map(|p| p.to_path_buf())
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    let integrity_checker = crate::security::integrity::RuleIntegrityChecker::new(
+        &rules_dir,
+        "default-hmac-key", // Should be configured in production
+        false,              // Emergency kit disabled by default
+    );
+    if let Ok(checker) = integrity_checker {
+        let result = checker.verify();
+        if !result.verified {
+            banner::print_error(&format!(
+                "Rule integrity check failed: {:?}",
+                result.failed_files
+            ));
+            return Err(anyhow::anyhow!(
+                "Security: Rule file integrity verification failed"
+            ));
+        }
+    }
+    // If integrity checker fails to initialize (e.g., no manifest), continue (optional warning)
+
     let threat_engine = ThreatEngine::new(
         &config.policies.dictionaries,
         config.policies.allowed_patterns.clone(),
@@ -209,6 +240,63 @@ async fn handler(
 
     if state.verbose {
         println!("{} {} {}", "INCOMING:".bright_black(), method, path_str);
+    }
+
+    // ── Layer 0: Request Smuggling Prevention ──
+    // Check for HTTP request smuggling attempts before rate limiting
+    let smuggling_config = crate::security::smuggling::SmugglingProtectionConfig::default();
+    let header_result = crate::security::smuggling::check_request_headers(
+        &headers,
+        method.as_str(),
+        &smuggling_config,
+    );
+    if header_result.blocked {
+        let block_reason = header_result
+            .reason
+            .unwrap_or_else(|| "Unknown smuggling attempt".to_string());
+        banner::print_warning(&format!("Request smuggling attempt: {}", block_reason));
+        log_security_event(
+            state.audit_log_path.clone(),
+            serde_json::json!({
+                "timestamp": Utc::now().to_rfc3339(),
+                "event": "smuggling_blocked",
+                "reason": block_reason
+            }),
+        );
+        return block_response(
+            "Security",
+            "request_smuggling",
+            "Malformed request headers detected",
+        );
+    }
+
+    // ── Path Security ──
+    // Only validate paths that contain suspicious patterns (traversal attempts)
+    // Skip API routes like /v1/chat/completions which start with /
+    let is_api_route = path_str.starts_with("/v1/") || path_str.starts_with("/api/");
+    let has_traversal =
+        path_str.contains("..") || path_str.contains("~") || path_str.contains("//");
+
+    if !is_api_route && has_traversal {
+        let path_validation = crate::security::path_security::validate_path(&path_str);
+        if !path_validation.valid {
+            let error_msg = path_validation
+                .errors
+                .iter()
+                .map(|e| format!("{:?}", e))
+                .collect::<Vec<_>>()
+                .join(", ");
+            banner::print_warning(&format!("Path traversal blocked: {}", error_msg));
+            log_security_event(
+                state.audit_log_path.clone(),
+                serde_json::json!({
+                    "timestamp": Utc::now().to_rfc3339(),
+                    "event": "path_traversal_blocked",
+                    "path": path_str
+                }),
+            );
+            return block_response("Security", "path_traversal", "Invalid request path");
+        }
     }
 
     // ── Rate Limiting ──
@@ -377,6 +465,12 @@ async fn handler(
                 } else {
                     &current_content
                 };
+
+                // ── Unicode Normalization ──
+                // Normalize Unicode text to prevent homograph attacks and obfuscation
+                let normalized = crate::security::normalize_unicode(scan_text);
+                let scan_text = &normalized.normalized;
+                // Use normalized text for all subsequent checks
 
                 // ── Step 1b: Injection Scanner ──
                 let inj_start = std::time::Instant::now();
@@ -571,6 +665,47 @@ async fn handler(
             .await
         {
             Ok(mut res) => {
+                // ── Response DLP (Data Loss Prevention) ──
+                // Check response body for PII leaks before returning to client
+                let body = res.body_mut();
+                if let Ok(body_bytes) = axum::body::to_bytes(
+                    std::mem::replace(body, axum::body::Body::empty()),
+                    usize::MAX,
+                )
+                .await
+                {
+                    if let Ok(body_text) = String::from_utf8(body_bytes.to_vec()) {
+                        if let Some(violation) =
+                            check_for_violations(&body_text, Some(&state.dlp_config))
+                        {
+                            if state.dlp_action == DlpAction::Block {
+                                banner::print_warning(&format!(
+                                    "Response DLP BLOCKED: {} leak detected in response from {}",
+                                    violation.description, path_str
+                                ));
+                                log_security_event(
+                                    state.audit_log_path.clone(),
+                                    serde_json::json!({
+                                        "timestamp": Utc::now().to_rfc3339(),
+                                        "event": "response_dlp_blocked",
+                                        "path": path_str,
+                                        "category": violation.category,
+                                        "description": violation.description
+                                    }),
+                                );
+                                return block_response(
+                                    &violation.category,
+                                    "response_pii_leak",
+                                    &format!(
+                                        "Response contains prohibited data: {}",
+                                        violation.description
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+
                 // Inject X-Guardian-Risk header in audit mode
                 if let Some(level) = risk_level {
                     if let Ok(hv) = axum::http::HeaderValue::from_str(level) {

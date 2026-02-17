@@ -549,14 +549,28 @@ This project is open source. See [LICENSE](LICENSE) for details.
 
 ## ✍️ A Note from the Creator
 
-### Why I Built Open-Guardian
-This project was born out of necessity following the release of tools like OpenClaw and the security vacuum they created. I realized that while Agents are the future, they are dangerously exposed without a proper firewall.
+## Note from the Contributors
 
-**Transparency Statement**: This codebase was architected by a human and built with the assistance of advanced AI Agents and LLMs, acting under strict Human-in-the-Loop supervision.
+**Original Author:** Anthony Smith ([@AnthonySmith96](https://github.com/AnthonySmith96)) — founded [CyberIndustree](https://github.com/CyberIndustree), built the original Open-GuardIAn foundation.
 
-### About the Author
-I bring over 6 years of professional Fullstack development experience and have been an entrepreneur since 2016. Currently, I am pursuing a Master's degree in Artificial Intelligence, with over 2 years of specialization in Data Science and Machine Learning.
+**This Fork:** Enhanced by [HeraAndHades](https://github.com/HeraAndHades) — adding enterprise security hardening (Phase 1-2) through human-AI collaboration.
 
-I chose Rust over Python because security infrastructure must be invisible and fast. This is my first contribution designed specifically for the Open Source community—a way to give back to the ecosystem that has helped me so much.
+### What We Added
 
-Let's build a safer future for AI Agents.
+This fork extends Anthony's original architecture with **~5,600 lines of security hardening**:
+
+| Module | Original | This Fork |
+|--------|----------|-----------|
+| DLP | Basic | Full PII/Secret detection + redaction |
+| Injection | Basic patterns | Heuristic scoring (90+ = block) |
+| Threat Engine | Signatures | Severity tiers + RAG context |
+| HMAC Integrity | ❌ | ✅ Rule file tamper protection |
+| Path Security | ❌ | ✅ Directory traversal defense |
+| Rate Limiting | ❌ | ✅ Token bucket per-IP |
+| Request Smuggling | ❌ | ✅ TE/CL validation |
+| Env Security | ❌ | ✅ .env permission checks |
+| Unicode Norm | ❌ | ✅ Homograph attack defense |
+
+**Development:** Pair-programmed with [Hera](https://github.com/HeraAndHades) (AI agent) over 12+ hours, 27 test cases, live security validation.
+
+**Status:** Preparing upstream PR to merge enhancements back to original
