@@ -52,7 +52,7 @@ impl std::fmt::Display for IntegrityError {
 impl std::error::Error for IntegrityError {}
 
 pub fn compute_file_hmac(path: &Path, key: &[u8]) -> Result<HmacSignature, IntegrityError> {
-    let content = fs::read(path).map_err(|e| IntegrityError::IoError(e))?;
+    let content = fs::read(path).map_err(IntegrityError::IoError)?;
     Ok(compute_hmac(&content, key))
 }
 
@@ -79,7 +79,7 @@ pub fn load_manifest(rules_dir: &Path) -> Result<RuleManifest, IntegrityError> {
         ));
     }
 
-    let content = fs::read_to_string(&manifest_path).map_err(|e| IntegrityError::IoError(e))?;
+    let content = fs::read_to_string(&manifest_path).map_err(IntegrityError::IoError)?;
 
     serde_json::from_str(&content).map_err(|e| IntegrityError::ManifestParseError(e.to_string()))
 }
@@ -88,14 +88,14 @@ pub fn save_manifest(rules_dir: &Path, manifest: &RuleManifest) -> Result<(), In
     let manifest_path = rules_dir.join(".manifest.json");
     let content = serde_json::to_string_pretty(manifest)
         .map_err(|e| IntegrityError::ManifestParseError(e.to_string()))?;
-    fs::write(&manifest_path, content).map_err(|e| IntegrityError::IoError(e))?;
+    fs::write(&manifest_path, content).map_err(IntegrityError::IoError)?;
     Ok(())
 }
 
 pub fn generate_manifest(rules_dir: &Path, key: &[u8]) -> Result<RuleManifest, IntegrityError> {
     let mut signatures = HashMap::new();
 
-    let entries = fs::read_dir(rules_dir).map_err(|e| IntegrityError::IoError(e))?;
+    let entries = fs::read_dir(rules_dir).map_err(IntegrityError::IoError)?;
 
     for entry in entries.flatten() {
         let path = entry.path();

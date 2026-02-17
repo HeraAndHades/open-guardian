@@ -3,7 +3,7 @@
 //! This module implements protection against HTTP request smuggling attacks by
 //! filtering and blocking dangerous headers, particularly Transfer-Encoding.
 
-use http::{HeaderMap, HeaderName, HeaderValue};
+use http::{HeaderMap, HeaderName};
 use serde::{Deserialize, Serialize};
 
 fn default_true() -> bool {
@@ -55,7 +55,7 @@ pub fn check_request_headers(
     let mut warnings = Vec::new();
     let mut blocked = false;
     let mut reason = None;
-    let mut modified = false;
+    let modified = false;
 
     let method_upper = method.to_uppercase();
     let is_request_with_body = matches!(method_upper.as_str(), "POST" | "PUT" | "PATCH" | "DELETE");

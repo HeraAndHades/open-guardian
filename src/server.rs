@@ -42,6 +42,7 @@ struct AppState {
     routes: HashMap<String, RouteConfig>,
     audit_log_path: Option<String>,
     block_threshold: u32,
+    #[allow(clippy::type_complexity)]
     rate_limiter: Option<Arc<tokio::sync::Mutex<HashMap<String, (u32, std::time::Instant)>>>>,
     rate_limit_requests_per_minute: u32,
     verbose: bool,
@@ -68,12 +69,11 @@ pub async fn start_server(
         .policies
         .dictionaries
         .first()
-        .map(|d| {
+        .and_then(|d| {
             std::path::Path::new(&d.path)
                 .parent()
                 .map(|p| p.to_path_buf())
         })
-        .flatten()
         .unwrap_or_else(|| std::path::PathBuf::from("."));
 
     let integrity_checker = crate::security::integrity::RuleIntegrityChecker::new(

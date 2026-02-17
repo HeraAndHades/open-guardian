@@ -11,7 +11,7 @@ pub fn run_audit(path: &str) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let files_to_check = vec![".env", "openclaw.json", "config.json"];
+    let files_to_check = [".env", "openclaw.json", "config.json"];
 
     for entry in fs::read_dir(audit_path)? {
         let entry = entry?;

@@ -3,6 +3,7 @@ pub enum AttackCategory {
     Jailbreak,
     SystemPromptExtraction,
     RoleplayAttack,
+    #[allow(clippy::upper_case_acronyms)]
     RCE,
     DataExfiltration,
     None,

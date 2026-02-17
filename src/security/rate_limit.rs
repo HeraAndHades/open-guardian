@@ -7,7 +7,7 @@ use http::{HeaderMap, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -57,17 +57,12 @@ impl Default for RateLimitConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum TrafficClass {
+    #[default]
     Normal,
     Flagged,
     Blocked,
-}
-
-impl Default for TrafficClass {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 #[derive(Debug, Clone)]

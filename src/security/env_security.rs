@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn default_true() -> bool {
     true
@@ -43,18 +43,13 @@ impl Default for EnvSecurityConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum SecretStore {
+    #[default]
     EnvironmentVariable,
     SystemdCreds,
     Vault,
     EnvFile,
-}
-
-impl Default for SecretStore {
-    fn default() -> Self {
-        SecretStore::EnvironmentVariable
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,7 +5,6 @@
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use unicode_normalization::UnicodeNormalization;
 
 const ZERO_WIDTH_CHARS: &[char] = &[
     '\u{200B}', '\u{200C}', '\u{200D}', '\u{200E}', '\u{200F}', '\u{FEFF}', '\u{202A}', '\u{202B}',
@@ -106,8 +105,10 @@ pub enum IssueType {
 
 pub struct UnicodeNormalizer {
     config: UnicodeNormalizerConfig,
+    #[allow(dead_code)]
     zero_width_pattern: Regex,
     rtl_override_pattern: Regex,
+    #[allow(dead_code)]
     base64_pattern: Regex,
     url_encoded_pattern: Regex,
     html_entity_pattern: Regex,

@@ -7,7 +7,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, warn};
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PathSecurityConfig {
@@ -110,6 +110,7 @@ impl PathSecurity {
     pub fn validate(&self, path: &str) -> PathValidationResult {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
+        #[allow(unused_assignments)]
         let mut canonical_path: Option<PathBuf> = None;
 
         if self.config.block_null_bytes && self.null_byte_pattern.is_match(path) {
@@ -274,7 +275,7 @@ impl PathSecurity {
         result
     }
 
-    fn is_within_allowed_directory(&self, path: &PathBuf) -> bool {
+    fn is_within_allowed_directory(&self, path: &Path) -> bool {
         if self.config.allowed_directories.is_empty() {
             return true;
         }
