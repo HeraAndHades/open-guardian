@@ -19,5 +19,5 @@ pub mod smuggling;
 pub use dlp::{check_for_violations, redact_pii, DlpAction};
 pub use injection_scanner::analyze_injection;
 pub use judge::Judge;
-pub use threat_engine::ThreatEngine;
 pub use normalizer::normalize_unicode;
+pub use threat_engine::ThreatEngine;

@@ -32,7 +32,9 @@ impl ProxyClient {
         let base_url = upstream_url;
         let mut target_path = path;
 
-        if (base_url.ends_with("/v1") || base_url.ends_with("/v1/")) && target_path.starts_with("/v1") {
+        if (base_url.ends_with("/v1") || base_url.ends_with("/v1/"))
+            && target_path.starts_with("/v1")
+        {
             target_path = &target_path[3..];
         }
 
