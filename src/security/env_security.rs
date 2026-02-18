@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -70,6 +71,7 @@ pub struct FilePermissions {
     pub group_gid: Option<u32>,
 }
 
+#[allow(unused_mut, unused_variables)]
 pub fn check_env_security(env_path: &Path, config: &EnvSecurityConfig) -> EnvSecurityResult {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
@@ -91,63 +93,68 @@ pub fn check_env_security(env_path: &Path, config: &EnvSecurityConfig) -> EnvSec
 
     match fs::metadata(env_path) {
         Ok(metadata) => {
-            let mode = metadata.permissions().mode();
-            let is_world_readable = (mode & 0o004) != 0;
-            let is_group_readable = (mode & 0o040) != 0;
-
             #[cfg(unix)]
-            let (owner_uid, group_gid) = {
-                use std::os::unix::fs::MetadataExt;
-                (Some(metadata.uid()), Some(metadata.gid()))
-            };
-            #[cfg(not(unix))]
-            let (owner_uid, group_gid) = (None, None);
+            {
+                let mode = metadata.permissions().mode();
+                let is_world_readable = (mode & 0o004) != 0;
+                let is_group_readable = (mode & 0o040) != 0;
 
-            permissions = Some(FilePermissions {
-                mode,
-                is_world_readable,
-                is_group_readable,
-                owner_uid,
-                group_gid,
-            });
+                let (owner_uid, group_gid) = {
+                    use std::os::unix::fs::MetadataExt;
+                    (Some(metadata.uid()), Some(metadata.gid()))
+                };
 
-            if config.warn_world_readable && is_world_readable {
-                let mode_str = format!("{:o}", mode);
-                warnings.push(format!(
-                    "INSECURE: .env file is world-readable (mode: {}). Anyone on the system can read your secrets!",
-                    mode_str
-                ));
-                warnings.push("RECOMMENDATION: Run: chmod 600 .env".to_string());
+                permissions = Some(FilePermissions {
+                    mode,
+                    is_world_readable,
+                    is_group_readable,
+                    owner_uid,
+                    group_gid,
+                });
 
-                if config.block_insecure_env {
-                    is_secure = false;
-                    errors.push(
-                        "World-readable .env file - startup blocked for security".to_string(),
-                    );
-                }
-            }
+                if config.warn_world_readable && is_world_readable {
+                    let mode_str = format!("{:o}", mode);
+                    warnings.push(format!(
+                        "INSECURE: .env file is world-readable (mode: {}). Anyone on the system can read your secrets!",
+                        mode_str
+                    ));
+                    warnings.push("RECOMMENDATION: Run: chmod 600 .env".to_string());
 
-            if config.warn_world_readable && is_group_readable && !is_world_readable {
-                warnings.push(format!(
-                    "WARNING: .env file is group-readable (mode: {:o}). Consider restricting to owner only.",
-                    mode
-                ));
-            }
-
-            #[cfg(unix)]
-            if config.check_ownership {
-                if let (Some(uid), Some(_gid)) = (owner_uid, group_gid) {
-                    let current_uid = unsafe { libc::getuid() };
-
-                    if uid == 0 {
-                        // Owned by root - that's fine
-                    } else if uid != current_uid {
-                        warnings.push(format!(
-                            "WARNING: .env file is owned by UID {}, not root or current user (UID {})",
-                            uid, current_uid
-                        ));
+                    if config.block_insecure_env {
+                        is_secure = false;
+                        errors.push(
+                            "World-readable .env file - startup blocked for security".to_string(),
+                        );
                     }
                 }
+
+                if config.warn_world_readable && is_group_readable && !is_world_readable {
+                    warnings.push(format!(
+                        "WARNING: .env file is group-readable (mode: {:o}). Consider restricting to owner only.",
+                        mode
+                    ));
+                }
+
+                if config.check_ownership {
+                    if let (Some(uid), Some(_gid)) = (owner_uid, group_gid) {
+                        let current_uid = unsafe { libc::getuid() };
+
+                        if uid == 0 {
+                            // Owned by root - that's fine
+                        } else if uid != current_uid {
+                            warnings.push(format!(
+                                "WARNING: .env file is owned by UID {}, not root or current user (UID {})",
+                                uid, current_uid
+                            ));
+                        }
+                    }
+                }
+            }
+
+            #[cfg(not(unix))]
+            {
+                let _ = &metadata;
+                tracing::warn!("SEC: .env permission checks are only available on Unix. Skipping.");
             }
         }
         Err(e) => {

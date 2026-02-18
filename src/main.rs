@@ -58,6 +58,12 @@ enum Commands {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// Generate integrity manifest for rules (Requires GUARDIAN_HMAC_KEY)
+    Sign {
+        /// Directory containing rules
+        #[arg(default_value = "rules")]
+        rules_dir: String,
+    },
     /// Service management (Install, Uninstall, Start, Stop)
     Service {
         #[command(subcommand)]
@@ -379,6 +385,26 @@ async fn run_app(
         }
         Commands::Audit { path } => {
             audit::run_audit(&path)?;
+        }
+        Commands::Sign { rules_dir } => {
+            let key = std::env::var("GUARDIAN_HMAC_KEY")
+                .expect("FATAL: GUARDIAN_HMAC_KEY must be set in environment to sign rules");
+
+            banner::print_step(&format!("Signing rules in {}/...", rules_dir));
+
+            let checker =
+                crate::security::integrity::RuleIntegrityChecker::new(&rules_dir, &key, false)
+                    .map_err(|e| {
+                        anyhow::anyhow!("Failed to initialize integrity checker: {}", e)
+                    })?;
+
+            checker
+                .save_manifest()
+                .map_err(|e| anyhow::anyhow!("Failed to save manifest: {}", e))?;
+
+            banner::print_success(
+                "Rules signed successfully. Manifest generated (.manifest.json).",
+            );
         }
         Commands::Service { action } => {
             handle_service_command(action)?;
