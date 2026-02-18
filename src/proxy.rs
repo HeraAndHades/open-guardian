@@ -46,22 +46,11 @@ impl ProxyClient {
             if let Ok(key) = std::env::var(env_name) {
                 let clean_key = key.trim().replace(['\"', '\''], "");
 
-                // Security-safe log for validation
-                if clean_key.len() >= 8 {
-                    tracing::info!(
-                        "SEC: Injecting key from {} (Length: {}, First 4: {}, Last 4: {})",
-                        env_name,
-                        clean_key.len(),
-                        &clean_key[..4],
-                        &clean_key[clean_key.len() - 4..]
-                    );
-                } else {
-                    tracing::warn!(
-                        "SEC: Injecting VERY SHORT key from {} (Length: {})",
-                        env_name,
-                        clean_key.len()
-                    );
-                }
+                tracing::info!(
+                    "SEC: API key loaded from env var '{}' (length: {})",
+                    env_name,
+                    clean_key.len()
+                );
 
                 match reqwest::header::HeaderValue::from_str(&format!("Bearer {}", clean_key)) {
                     Ok(hv) => {

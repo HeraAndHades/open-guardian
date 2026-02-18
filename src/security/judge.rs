@@ -207,9 +207,11 @@ impl Judge {
                                 || response_text.contains("NOT SAFE")
                                 || response_text.contains("BLOCK")
                                 || response_text.contains("DANGEROUS")
+                                || response_text.contains("DANGER")
                                 || response_text.contains("ATTACK");
 
-                            let is_safe_keyword = response_text.contains("SAFE") && !is_unsafe;
+                            let is_safe_keyword = !is_unsafe
+                                && (response_text == "SAFE" || response_text.starts_with("SAFE"));
 
                             let verdict = if is_unsafe {
                                 false
@@ -219,8 +221,12 @@ impl Judge {
                                 tracing::warn!("AI Judge returned empty response. Respecting fail_open policy.");
                                 self.config.fail_open.unwrap_or(true)
                             } else {
-                                // Ambiguous response → default safe (Agent-First)
-                                true
+                                // Ambiguous response → fail-safe block
+                                tracing::warn!(
+                                    "AI Judge returned ambiguous response: '{}'. Blocking.",
+                                    response_text
+                                );
+                                false
                             };
 
                             tracing::info!(

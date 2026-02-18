@@ -109,6 +109,13 @@ fn hardcoded_signatures() -> Vec<ThreatSignature> {
             severity: 100,
             is_regex: false,
         },
+        ThreatSignature {
+            id: "HC-RCE-007".into(),
+            pattern: "mkfs".into(),
+            category: "RCE".into(),
+            severity: 100,
+            is_regex: false,
+        },
         // ═══════════════════════════════════════════════════
         // SEVERITY 95 — HARD BLOCK (Jailbreaks)
         // ═══════════════════════════════════════════════════
@@ -127,9 +134,8 @@ fn hardcoded_signatures() -> Vec<ThreatSignature> {
             is_regex: false,
         },
         // ═══════════════════════════════════════════════════
-        // SEVERITY 80 — TAG & AUDIT (Agent-First: Risky Tools)
-        // These are legitimate agent operations. AI Judge decides.
-        // If AI Judge is OFF → LOG WARN + ALLOW.
+        // SEVERITY 100 — HARD BLOCK (Destructive Commands)
+        // rm -rf, rm -r / → Critical RCE, always block.
         // ═══════════════════════════════════════════════════
         ThreatSignature {
             id: "HC-RCE-010".into(),

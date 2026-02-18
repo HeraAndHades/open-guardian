@@ -56,6 +56,20 @@ async fn health_handler() -> impl IntoResponse {
     (StatusCode::OK, "OK\n")
 }
 
+fn get_hmac_key() -> String {
+    match std::env::var("GUARDIAN_HMAC_KEY") {
+        Ok(key) if !key.is_empty() => key,
+        _ => {
+            if cfg!(debug_assertions) {
+                tracing::warn!("SEC: GUARDIAN_HMAC_KEY not set — using insecure dev key. DO NOT USE IN PRODUCTION.");
+                "insecure-dev-only-key".to_string()
+            } else {
+                panic!("FATAL: GUARDIAN_HMAC_KEY environment variable must be set in release mode");
+            }
+        }
+    }
+}
+
 pub async fn start_server(
     config: ServerConfig,
     shutdown_token: tokio_util::sync::CancellationToken,
@@ -78,8 +92,8 @@ pub async fn start_server(
 
     let integrity_checker = crate::security::integrity::RuleIntegrityChecker::new(
         &rules_dir,
-        "default-hmac-key", // Should be configured in production
-        false,              // Emergency kit disabled by default
+        &get_hmac_key(),
+        false, // Emergency kit disabled by default
     );
     if let Ok(checker) = integrity_checker {
         let result = checker.verify();

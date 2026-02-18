@@ -1,11 +1,11 @@
 [package]
 name = "open-guardian"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
 license = "Apache-2.0"
-authors = ["Anthony Smith <tu-email-o-github>"]
+authors = ["Anthony Smith"]
 description = "The High-Performance Firewall for AI Agents."
-repository = "https://github.com/your-username/open-guardian"
+repository = "https://github.com/AnthonySmith96/open-guardian"
 keywords = ["ai", "security", "firewall", "llm", "rust"]
 categories = ["network-programming", "science::robotics"]
 
