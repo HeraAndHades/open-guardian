@@ -3,6 +3,7 @@ mod banner;
 mod config;
 mod logger;
 mod proxy;
+mod router;
 mod security;
 mod server;
 
@@ -378,6 +379,7 @@ async fn run_app(
                 verbose,
                 policies,
                 dlp_config,
+                load_balancer: file_config.load_balancer,
             };
 
             tracing::info!("Server starting on port {}", port);

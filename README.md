@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🛡️ Open-GuardIAn</h1>
+  <img src="openguardian.jpg" alt="Open-Guardian Logo" width="100%">
   <p align="center"><strong>The High-Performance Firewall for AI Agents.</strong></p>
   <p align="center"><em>Built in Rust. Agent-First. Defense-in-Depth.</em></p>
   <p align="center">
@@ -55,7 +55,12 @@ Open-GuardIAn is a **high-performance security middleware / reverse proxy** buil
 
 ### ⚡ 3-Layer Defense Architecture
 
-Open-GuardIAn uses a **three-layer security model** — fast heuristics handle 90% of threats deterministically, backed by an optional AI engine for nuanced decisions.
+Open-GuardIAn uses a **Defense-in-Depth** security model — starting with cryptographic integrity and ending with cognitive analysis.
+
+#### Layer 0: HMAC Signed Integrity (Boot-Time Protection)
+The server **refuses to start** unless all rule files (`rules/*.json`) are cryptographically signed with a valid HMAC-SHA256 signature. This prevents attackers (or insiders) from tampering with the security definitions to bypass checks.
+- Command: `open-guardian sign` to generate signatures.
+- Verification: Automatic on startup.
 
 #### Layer 1: DLP Anonymizer — "The Iron Dome" (CPU — Sub-millisecond — Always On)
 
@@ -126,6 +131,49 @@ phone_redaction = true
 - **Unified Endpoint**: One URL (`http://localhost:8080/v1`) for all your AI needs.
 - **Cost & Latency Optimization**: Route bulk tasks to cheaper/faster providers (Groq) and complex reasoning to capable models (GPT-4), controlled entirely by config.
 - **Vendor Lock-in Protection**: Swap "gpt-4" to point to "claude-3-opus" in the config without changing a single line of application code.
+
+### ⚡ Semantic Load Balancer — Cost-Optimized Routing
+
+The **Semantic Load Balancer (SLB)** automatically routes prompts to the right tier based on their **complexity score** — computed deterministically in **microseconds**, with zero LLM calls.
+
+#### Complexity Scoring (0-100+)
+
+| Signal | Points |
+|--------|--------|
+| Base score | +10 |
+| Length | +1 per 50 characters |
+| Complexity keyword<br>(`code`, `function`, `rust`, `debug`, `architect`, etc.) | +20 each |
+| Code block (` ``` `) or JSON structure (`{...}`) | +30 |
+
+#### Routing Decision
+
+| Score vs. Threshold | Tier | Behavior |
+|---------------------|------|----------|
+| Score **< threshold** (default 40) | `🟢 TIER_FAST` | Cheap & fast (e.g. Groq / Llama-3-8b) |
+| Score **≥ threshold** | `🔵 TIER_SMART` | High-intelligence (e.g. GPT-4-Turbo) |
+
+> **Example:** `"Hello"` → Score 10 → **TIER_FAST** (Groq).  
+> `"Architect a Rust async runtime with backpressure"` → Score 90 → **TIER_SMART** (GPT-4).
+
+**Configuration (`guardian.toml`):**
+```toml
+[load_balancer]
+enabled = true
+smart_threshold = 40   # Tune based on your cost/quality trade-off
+
+[load_balancer.fast]
+url = "https://api.groq.com/openai"
+model = "llama3-8b-8192"
+key_env = "GROQ_API_KEY"
+
+[load_balancer.smart]
+url = "https://api.openai.com/v1"
+model = "gpt-4-turbo"
+key_env = "OPENAI_API_KEY"
+```
+
+> [!NOTE]
+> The SLB is a **hard override** — it rewrites both the upstream URL and the model field so the client never needs to know which backend served the request. The correct API key is always injected automatically.
 
 ### 📐 Policy Manager — "The Governor"
 

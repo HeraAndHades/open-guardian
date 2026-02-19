@@ -9,6 +9,7 @@ pub struct Config {
     pub security: Option<SecurityConfig>,
     pub judge: Option<JudgeConfig>,
     pub routes: Option<HashMap<String, RouteConfig>>,
+    pub load_balancer: Option<LoadBalancerConfig>,
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -172,6 +173,41 @@ pub struct RouteConfig {
     pub url: String,
     pub model: Option<String>,
     pub key_env: Option<String>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Semantic Load Balancer Config
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A single routing tier (fast or smart) in the Semantic Load Balancer.
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct TierConfig {
+    /// Upstream base URL for this tier.
+    pub url: String,
+    /// Optional model override to inject into the request body.
+    pub model: Option<String>,
+    /// Environment variable name holding the API key for this tier.
+    /// CRITICAL: This must be correct — the proxy will use it to inject
+    /// the Authorization header. A mismatch causes a 401 Unauthorized.
+    pub key_env: Option<String>,
+}
+
+/// Configuration block for the Semantic Load Balancer (SLB).
+/// Corresponds to `[load_balancer]` in guardian.toml.
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct LoadBalancerConfig {
+    /// Master switch. Set to `false` to disable SLB entirely.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Complexity score threshold. Prompts scoring >= this go to `smart_tier`.
+    /// Default: 40.
+    pub smart_threshold: Option<u32>,
+    /// Economy tier: low cost, high speed (e.g. Groq / Llama-3-8b).
+    #[serde(default, rename = "fast")]
+    pub fast_tier: TierConfig,
+    /// Premium tier: high intelligence (e.g. GPT-4-Turbo / Claude Opus).
+    #[serde(default, rename = "smart")]
+    pub smart_tier: TierConfig,
 }
 
 pub fn load_config() -> Config {
