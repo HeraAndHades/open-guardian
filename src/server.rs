@@ -31,6 +31,8 @@ pub struct ServerConfig {
     pub verbose: bool,
     pub policies: PolicyConfig,
     pub dlp_config: crate::config::DlpConfig,
+    /// Optional Semantic Load Balancer config.
+    pub load_balancer: Option<crate::config::LoadBalancerConfig>,
 }
 
 #[derive(Clone)]
@@ -50,6 +52,8 @@ struct AppState {
     default_action: PolicyAction,
     dlp_action: DlpAction,
     dlp_config: crate::config::DlpConfig,
+    /// Semantic Load Balancer config (None = disabled).
+    slb_config: Option<crate::config::LoadBalancerConfig>,
 }
 
 async fn health_handler() -> impl IntoResponse {
@@ -131,6 +135,7 @@ pub async fn start_server(
         default_action,
         dlp_action,
         dlp_config: config.dlp_config.clone(),
+        slb_config: config.load_balancer,
     };
 
     let app = Router::new()
@@ -357,13 +362,20 @@ async fn handler(
             }
         }
 
-        let upstream_url = route
+        let mut upstream_url = route
             .map(|r| r.url.clone())
             .unwrap_or_else(|| state.default_upstream.clone());
-        let api_key_env = route.and_then(|r| r.key_env.as_deref());
+        // We own the key_env as a String so it can be replaced by the SLB
+        // (Addendum 1: the SLB must swap the key when it changes the tier).
+        let mut effective_key_env: Option<String> =
+            route.and_then(|r| r.key_env.as_ref().map(|s| s.to_string()));
 
         let mut modified = true;
         let mut risk_level: Option<&str> = None; // For X-Guardian-Risk header in audit mode
+
+        // Accumulates message content for SLB scoring — populated during the scan
+        // loop below (Addendum 2: reuse already-parsed text, never re-read the stream).
+        let mut content_for_slb = String::new();
 
         if let Some(messages) = json_body.get_mut("messages").and_then(|m| m.as_array_mut()) {
             for message in messages {
@@ -381,6 +393,10 @@ async fn handler(
                 if content_text.is_empty() {
                     continue;
                 }
+
+                // Accumulate for SLB scoring (safe — already extracted from parsed JSON).
+                content_for_slb.push_str(&content_text);
+                content_for_slb.push(' ');
 
                 // ════════════════════════════════════════════════════
                 // LAYER 1: HEURISTIC ENGINE (CPU — Sub-millisecond)
@@ -654,6 +670,45 @@ async fn handler(
         }
 
         // ════════════════════════════════════════════════════
+        // SEMANTIC LOAD BALANCER (SLB) — Post-Security Routing
+        // ════════════════════════════════════════════════════
+        // Runs AFTER security pipeline so DLP + injection checks always fire first.
+        // Uses content already collected from the scan loop — no stream re-read.
+        if let Some(lb) = &state.slb_config {
+            if lb.enabled && !content_for_slb.is_empty() {
+                let decision = crate::router::route(&content_for_slb, lb);
+                let tier_label = decision.tier.to_string();
+
+                tracing::info!(
+                    "SLB routing prompt (Score: {}) -> {} [model: {:?}, url: {}]",
+                    decision.score,
+                    tier_label,
+                    decision.model,
+                    decision.upstream_url
+                );
+                banner::print_step(&format!(
+                    "SLB (Score: {}) -> {}",
+                    decision.score, tier_label
+                ));
+
+                // Hard Override (Addendum 3): SLB is authoritative.
+                upstream_url = decision.upstream_url;
+
+                // Addendum 1 — Header Swap: Replace key_env with the tier's key.
+                // If we left the old key, the new upstream would return 401.
+                effective_key_env = decision.key_env;
+
+                // Rewrite model in JSON body if tier specifies one.
+                if let Some(ref slb_model) = decision.model {
+                    if let Some(m_val) = json_body.get_mut("model") {
+                        *m_val = serde_json::Value::String(slb_model.clone());
+                    }
+                    modified = true;
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════
         // LAYER 3: FINAL EXECUTION
         // ════════════════════════════════════════════════════
         let final_body = if modified {
@@ -668,69 +723,37 @@ async fn handler(
         ));
         let response = match state
             .proxy
-            .forward_request(
-                &upstream_url,
-                api_key_env,
+            .forward_request(crate::proxy::ForwardOptions {
+                upstream_url: &upstream_url,
+                api_key_env: effective_key_env.as_deref(),
                 method,
-                &path_str,
+                path: &path_str,
                 headers,
-                final_body,
-            )
+                body: final_body,
+                dlp_config: Some(&state.dlp_config),
+                dlp_action: state.dlp_action,
+            })
             .await
         {
-            Ok(mut res) => {
-                // ── Response DLP (Data Loss Prevention) ──
-                // Check response body for PII leaks before returning to client
-                let body = res.body_mut();
-                if let Ok(body_bytes) = axum::body::to_bytes(
-                    std::mem::replace(body, axum::body::Body::empty()),
-                    usize::MAX,
-                )
-                .await
-                {
-                    if let Ok(body_text) = String::from_utf8(body_bytes.to_vec()) {
-                        if let Some(violation) =
-                            check_for_violations(&body_text, Some(&state.dlp_config))
-                        {
-                            if state.dlp_action == DlpAction::Block {
-                                banner::print_warning(&format!(
-                                    "Response DLP BLOCKED: {} leak detected in response from {}",
-                                    violation.description, path_str
-                                ));
-                                log_security_event(
-                                    state.audit_log_path.clone(),
-                                    serde_json::json!({
-                                        "timestamp": Utc::now().to_rfc3339(),
-                                        "event": "response_dlp_blocked",
-                                        "path": path_str,
-                                        "category": violation.category,
-                                        "description": violation.description
-                                    }),
-                                );
-                                return block_response(
-                                    &violation.category,
-                                    "response_pii_leak",
-                                    &format!(
-                                        "Response contains prohibited data: {}",
-                                        violation.description
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
+            Ok(res) => {
+                // DLP is now handled inside the proxy!
 
                 // Inject X-Guardian-Risk header in audit mode
                 if let Some(level) = risk_level {
+                    // We need to clone the response to add headers? No, res is mutable.
+                    // But wait, the proxy returns Response, we are in Ok(mut res).
+                    let mut response = res;
                     if let Ok(hv) = axum::http::HeaderValue::from_str(level) {
-                        res.headers_mut().insert("x-guardian-risk", hv);
+                        response.headers_mut().insert("x-guardian-risk", hv);
                     }
                     tracing::warn!(
                         "AUDIT MODE: Request forwarded with X-Guardian-Risk: {}",
                         level
                     );
+                    response
+                } else {
+                    res
                 }
-                res
             }
             Err(e) => {
                 banner::print_error(&format!("Internal Proxy Error: {}", e));
@@ -761,7 +784,16 @@ async fn handler(
         let upstream_url = state.default_upstream.clone();
         let response = match state
             .proxy
-            .forward_request(&upstream_url, None, method, &path_str, headers, body)
+            .forward_request(crate::proxy::ForwardOptions {
+                upstream_url: &upstream_url,
+                api_key_env: None,
+                method,
+                path: &path_str,
+                headers,
+                body,
+                dlp_config: Some(&state.dlp_config),
+                dlp_action: state.dlp_action,
+            })
             .await
         {
             Ok(res) => res,
