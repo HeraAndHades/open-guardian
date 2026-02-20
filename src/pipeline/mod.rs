@@ -10,4 +10,6 @@
 
 pub mod extract;
 
+// NOTE: These exports are for future integration (C2 expanded scan coverage)
+#[allow(unused_imports)]
 pub use extract::{extract_scan_targets, ScanTarget, TargetKind};

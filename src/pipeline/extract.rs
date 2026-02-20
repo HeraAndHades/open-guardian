@@ -63,27 +63,42 @@ pub fn extract_scan_targets(body: &Value) -> Vec<ScanTarget> {
                 if let Some(content) = map.get("content") {
                     extract_content_strings(&pointer, content, map.get("role"), &mut targets);
                 }
-                
+
                 // Check for prompt field (completions endpoint)
                 if let Some(prompt) = map.get("prompt") {
-                    extract_string_or_array(&format!("{}/prompt", pointer), prompt, TargetKind::Prompt, &mut targets);
+                    extract_string_or_array(
+                        &format!("{}/prompt", pointer),
+                        prompt,
+                        TargetKind::Prompt,
+                        &mut targets,
+                    );
                 }
-                
+
                 // Check for input field (embeddings endpoint)
                 if let Some(input) = map.get("input") {
-                    extract_string_or_array(&format!("{}/input", pointer), input, TargetKind::Input, &mut targets);
+                    extract_string_or_array(
+                        &format!("{}/input", pointer),
+                        input,
+                        TargetKind::Input,
+                        &mut targets,
+                    );
                 }
-                
+
                 // Check for instructions field
                 if let Some(instructions) = map.get("instructions") {
-                    extract_string_value(&format!("{}/instructions", pointer), instructions, TargetKind::Instructions, &mut targets);
+                    extract_string_value(
+                        &format!("{}/instructions", pointer),
+                        instructions,
+                        TargetKind::Instructions,
+                        &mut targets,
+                    );
                 }
-                
+
                 // Check for tool_calls array
                 if let Some(tool_calls) = map.get("tool_calls") {
                     extract_tool_calls(&pointer, tool_calls, &mut targets);
                 }
-                
+
                 // Recurse into all object fields
                 for (key, val) in map {
                     let child_pointer = format!("{}/{}", pointer, escape_json_pointer(key));
@@ -111,7 +126,7 @@ fn extract_content_strings(
     targets: &mut Vec<ScanTarget>,
 ) {
     let role_str = role.and_then(|r| r.as_str()).map(String::from);
-    
+
     match content {
         Value::String(s) => {
             targets.push(ScanTarget {
@@ -227,12 +242,18 @@ mod tests {
         });
 
         let targets = extract_scan_targets(&body);
-        
+
         // Should extract ALL message contents, not just user
-        assert!(targets.iter().any(|t| t.raw == "Hello" && t.role == Some("user".into())));
-        assert!(targets.iter().any(|t| t.raw == "Hi there!" && t.role == Some("assistant".into())));
-        assert!(targets.iter().any(|t| t.raw == "Tool result with secret" && t.role == Some("tool".into())));
-        
+        assert!(targets
+            .iter()
+            .any(|t| t.raw == "Hello" && t.role == Some("user".into())));
+        assert!(targets
+            .iter()
+            .any(|t| t.raw == "Hi there!" && t.role == Some("assistant".into())));
+        assert!(targets
+            .iter()
+            .any(|t| t.raw == "Tool result with secret" && t.role == Some("tool".into())));
+
         // Should have at least 3 targets
         assert!(targets.len() >= 3);
     }
@@ -244,7 +265,9 @@ mod tests {
         });
 
         let targets = extract_scan_targets(&body);
-        assert!(targets.iter().any(|t| t.kind == TargetKind::Prompt && t.raw == "Complete this sentence"));
+        assert!(targets
+            .iter()
+            .any(|t| t.kind == TargetKind::Prompt && t.raw == "Complete this sentence"));
     }
 
     #[test]
@@ -254,7 +277,9 @@ mod tests {
         });
 
         let targets = extract_scan_targets(&body);
-        assert!(targets.iter().any(|t| t.kind == TargetKind::Input && t.raw == "Embed this text"));
+        assert!(targets
+            .iter()
+            .any(|t| t.kind == TargetKind::Input && t.raw == "Embed this text"));
     }
 
     #[test]
@@ -277,10 +302,9 @@ mod tests {
         });
 
         let targets = extract_scan_targets(&body);
-        assert!(targets.iter().any(|t| 
-            t.kind == TargetKind::ToolArguments && 
-            t.raw.contains("secret base")
-        ));
+        assert!(targets
+            .iter()
+            .any(|t| t.kind == TargetKind::ToolArguments && t.raw.contains("secret base")));
     }
 
     #[test]

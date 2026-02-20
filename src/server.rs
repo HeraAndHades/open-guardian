@@ -790,7 +790,7 @@ async fn handler(
         // Default-deny non-JSON to prevent security bypasses.
         // If allowed via config, still apply raw byte DLP scanning.
         // ════════════════════════════════════════════════════
-        
+
         if !state.security_config.allow_non_json_passthrough {
             // SECURITY: Default-deny non-JSON requests
             banner::print_blocking(&format!(

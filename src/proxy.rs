@@ -151,16 +151,16 @@ impl ProxyClient {
         // ═══════════════════════════════════════════════════════════════
         // SECURITY FIX C5: Streaming Response Handling
         // ═══════════════════════════════════════════════════════════════
-        
+
         // Check if this is a streaming response (text/event-stream)
         let content_type = response
             .headers()
             .get(http::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
-        
+
         let is_sse = content_type.contains("text/event-stream");
-        
+
         if is_sse {
             // Pass-through SSE streaming without buffering
             banner::print_info(&format!(

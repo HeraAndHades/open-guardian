@@ -260,7 +260,7 @@ impl ThreatEngine {
         // New: Only match complete patterns or bounded words
         let lower = raw_input.to_lowercase();
         let mut matches = Vec::new();
-        
+
         for pattern in &self.allowed_patterns {
             let pattern_lower = pattern.to_lowercase();
             // Use word boundary matching: pattern must be surrounded by whitespace,
@@ -269,44 +269,44 @@ impl ThreatEngine {
                 matches.push(pattern.clone());
             }
         }
-        
+
         matches
     }
-    
+
     /// Check if pattern matches in a bounded way (not just substring)
     fn pattern_matches_bounded(input: &str, pattern: &str) -> bool {
         if input == pattern {
             return true; // Exact match
         }
-        
+
         // Check if pattern appears with word boundaries
         // Pattern must be preceded by whitespace/punctuation or start of string
         // AND followed by whitespace/punctuation or end of string
         let pattern_len = pattern.len();
         let positions: Vec<usize> = input.match_indices(pattern).map(|(i, _)| i).collect();
-        
+
         for pos in positions {
             let before = if pos == 0 {
                 ' ' // Start of string treated as boundary
             } else {
                 input.chars().nth(pos.saturating_sub(1)).unwrap_or(' ')
             };
-            
+
             let after_pos = pos + pattern_len;
             let after = if after_pos >= input.len() {
                 ' ' // End of string treated as boundary
             } else {
                 input.chars().nth(after_pos).unwrap_or(' ')
             };
-            
+
             // Both must be word boundaries (whitespace or punctuation)
             let is_boundary = |c: char| c.is_whitespace() || c.is_ascii_punctuation();
-            
+
             if is_boundary(before) && is_boundary(after) {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -352,7 +352,7 @@ impl ThreatEngine {
                 } else {
                     sig.severity
                 };
-                
+
                 if effective_severity > max_severity {
                     max_severity = effective_severity;
                 }

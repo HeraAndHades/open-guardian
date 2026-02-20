@@ -311,33 +311,38 @@ pub fn normalize(content: &str) -> NormalizationResult {
 /// - DLP patterns
 /// - Threat signatures
 /// - Injection patterns
+///
+/// NOTE: This function is plumbed for future integration. Currently
+/// the existing normalizer is used to minimize code churn.
+#[allow(dead_code)]
 pub fn normalize_for_matching(content: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
-    
+
     let mut result = content.to_string();
-    
+
     // Step 1: Unicode NFKC normalization
     result = result.nfkc().collect::<String>();
-    
+
     // Step 2: Strip zero-width characters
     for zwc in ZERO_WIDTH_CHARS {
         result = result.replace(*zwc, "");
     }
-    
+
     // Step 3: Normalize homoglyphs (Cyrillic → ASCII)
     for (cyrillic, ascii) in HOMOGLYPH_MAPPINGS {
         result = result.replace(*cyrillic, ascii);
     }
-    
+
     // Step 4: Casefold for case-insensitive matching
     // Using Unicode casefolding, not just lowercase
     result = result.to_lowercase();
-    
+
     result
 }
 
 /// Quick check if content contains suspicious Unicode patterns.
 /// Use this for fast-path filtering before detailed analysis.
+#[allow(dead_code)]
 pub fn has_suspicious_unicode(content: &str) -> bool {
     // Check for zero-width characters
     for c in content.chars() {
@@ -345,7 +350,7 @@ pub fn has_suspicious_unicode(content: &str) -> bool {
             return true;
         }
     }
-    
+
     // Check for RTL override
     if content.contains('\u{202A}')
         || content.contains('\u{202B}')
@@ -355,7 +360,7 @@ pub fn has_suspicious_unicode(content: &str) -> bool {
     {
         return true;
     }
-    
+
     // Check for Cyrillic homoglyphs
     for (c, _) in HOMOGLYPH_MAPPINGS.iter().take(17) {
         // First 17 are lowercase Cyrillic that look like ASCII
@@ -363,6 +368,6 @@ pub fn has_suspicious_unicode(content: &str) -> bool {
             return true;
         }
     }
-    
+
     false
 }
